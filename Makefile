@@ -11,7 +11,7 @@ build:
 all: test manager
 
 # Run tests
-test: generate fmt vet manifests
+test: generate fmt vet
 	go test ./pkg/... ./cmd/... -coverprofile cover.out
 
 # Build manager binary
