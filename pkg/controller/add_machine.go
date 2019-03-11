@@ -17,7 +17,7 @@ limitations under the License.
 package controller
 
 import (
-	"github.com/metalkube/cluster-api-provider-baremetal/pkg/cloud/baremetal/actuators/machine"
+	"github.com/openshift/cluster-api-provider-baremetal/pkg/cloud/baremetal/actuators/machine"
 	capimachine "github.com/openshift/cluster-api/pkg/controller/machine"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )

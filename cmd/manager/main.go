@@ -22,8 +22,8 @@ import (
 	"os"
 
 	bmoapis "github.com/metalkube/baremetal-operator/pkg/apis"
-	"github.com/metalkube/cluster-api-provider-baremetal/pkg/apis"
-	"github.com/metalkube/cluster-api-provider-baremetal/pkg/cloud/baremetal/actuators/machine"
+	"github.com/openshift/cluster-api-provider-baremetal/pkg/apis"
+	"github.com/openshift/cluster-api-provider-baremetal/pkg/cloud/baremetal/actuators/machine"
 	clusterapis "github.com/openshift/cluster-api/pkg/apis"
 	capimachine "github.com/openshift/cluster-api/pkg/controller/machine"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
