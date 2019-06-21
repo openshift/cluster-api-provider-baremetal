@@ -13,22 +13,45 @@ required = [
     "sigs.k8s.io/controller-runtime/pkg/runtime/signals",
     "sigs.k8s.io/controller-runtime/pkg/source",
     "sigs.k8s.io/testing_frameworks/integration", # for integration testing
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
+    "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     ]
 
 [prune]
   go-tests = true
 
-
 [[constraint]]
   name="github.com/metal3-io/baremetal-operator"
   branch="master"
 
-# STANZAS BELOW ARE GENERATED AND MAY BE WRITTEN - DO NOT MODIFY BELOW THIS LINE.
+[[override]]
+  name = "k8s.io/kube-aggregator"
+  version = "kubernetes-1.14.1"
 
-[[constraint]]
-  name="sigs.k8s.io/controller-runtime"
-  version="v0.1.1"
+[[override]]
+  name = "k8s.io/code-generator"
+  version = "kubernetes-1.14.1"
+
+[[override]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.14.1"
+
+[[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  version = "kubernetes-1.14.1"
+
+[[override]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.14.1"
+
+[[override]]
+  name = "k8s.io/client-go"
+  version = "kubernetes-1.14.1"
+
+[[override]]
+  name = "sigs.k8s.io/controller-runtime"
+  # Pin the latest master HEAD to get support webhooks
+  # which are not yet released
+  revision="96b67f231945a8e8550dbdd8bfbd550a0c68097b"
 
 [[constraint]]
   name="sigs.k8s.io/controller-tools"
@@ -36,7 +59,7 @@ required = [
 
 [[override]]
   name = "github.com/openshift/cluster-api"
-  branch = "openshift-4.2-cluster-api-0.0.0-alpha.4"
+  branch = "openshift-4.2-cluster-api-0.1.0"
 
 # For dependency below: Refer to issue https://github.com/golang/dep/issues/1799
 [[override]]
