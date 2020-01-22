@@ -19,9 +19,9 @@
 package v1alpha1
 
 import (
-	rest "k8s.io/client-go/rest"
 	v1alpha1 "github.com/metal3-io/cluster-api-provider-baremetal/pkg/apis/machineremediation/v1alpha1"
 	"github.com/metal3-io/cluster-api-provider-baremetal/pkg/client/clientset/versioned/scheme"
+	rest "k8s.io/client-go/rest"
 )
 
 type MachineremediationV1alpha1Interface interface {

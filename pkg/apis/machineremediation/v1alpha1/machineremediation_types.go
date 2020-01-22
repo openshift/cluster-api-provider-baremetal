@@ -64,21 +64,20 @@ type MachineRemediationSpec struct {
 	// MachineName contains the name of machine that should be remediate
 	MachineName string `json:"machineName,omitempty" valid:"required"`
 
-        // Map of string keys and values that can be used to organize and categorize
-        // (scope and select) objects. May match selectors of replication controllers
-        // and services.
-        // More info: http://kubernetes.io/docs/user-guide/labels
-        // +optional
-        SavedLabels map[string]string `json:"savedLabels,omitempty" protobuf:"bytes,11,rep,name=savedLabels"`
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services.
+	// More info: http://kubernetes.io/docs/user-guide/labels
+	// +optional
+	SavedLabels map[string]string `json:"savedLabels,omitempty" protobuf:"bytes,11,rep,name=savedLabels"`
 
-        // Annotations is an unstructured key value map stored with a resource that may be
-        // set by external tools to store and retrieve arbitrary metadata. They are not
-        // queryable and should be preserved when modifying objects.
-        // More info: http://kubernetes.io/docs/user-guide/annotations
-        // +optional
-        SavedAnnotations map[string]string `json:"savedAnnotations,omitempty" protobuf:"bytes,12,rep,name=savedAnnotations"`
+	// Annotations is an unstructured key value map stored with a resource that may be
+	// set by external tools to store and retrieve arbitrary metadata. They are not
+	// queryable and should be preserved when modifying objects.
+	// More info: http://kubernetes.io/docs/user-guide/annotations
+	// +optional
+	SavedAnnotations map[string]string `json:"savedAnnotations,omitempty" protobuf:"bytes,12,rep,name=savedAnnotations"`
 }
-
 
 // MachineRemediationStatus defines the observed status of MachineRemediation
 type MachineRemediationStatus struct {

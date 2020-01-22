@@ -14,8 +14,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"k8s.io/apimachinery/pkg/labels"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func MatchingLabels(ns string, selector labels.Selector) client.ListOptionFunc {

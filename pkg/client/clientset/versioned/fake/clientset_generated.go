@@ -19,14 +19,14 @@
 package fake
 
 import (
+	clientset "github.com/metal3-io/cluster-api-provider-baremetal/pkg/client/clientset/versioned"
+	machineremediationv1alpha1 "github.com/metal3-io/cluster-api-provider-baremetal/pkg/client/clientset/versioned/typed/machineremediation/v1alpha1"
+	fakemachineremediationv1alpha1 "github.com/metal3-io/cluster-api-provider-baremetal/pkg/client/clientset/versioned/typed/machineremediation/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
-	clientset "github.com/metal3-io/cluster-api-provider-baremetal/pkg/client/clientset/versioned"
-	machineremediationv1alpha1 "github.com/metal3-io/cluster-api-provider-baremetal/pkg/client/clientset/versioned/typed/machineremediation/v1alpha1"
-	fakemachineremediationv1alpha1 "github.com/metal3-io/cluster-api-provider-baremetal/pkg/client/clientset/versioned/typed/machineremediation/v1alpha1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.

@@ -9,8 +9,8 @@ import (
 	"github.com/metal3-io/cluster-api-provider-baremetal/pkg/consts"
 	"github.com/metal3-io/cluster-api-provider-baremetal/pkg/utils/conditions"
 
-	"k8s.io/klog"
 	bmov1 "github.com/metal3-io/baremetal-operator/pkg/apis/metal3/v1alpha1"
+	"k8s.io/klog"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -208,15 +208,15 @@ func (bmr *BareMetalRemediator) Reboot(ctx context.Context, machineRemediation *
 		// Node back to Ready under the cluster
 		if conditions.NodeHasCondition(node, corev1.NodeReady, corev1.ConditionTrue) {
 			klog.V(4).Infof("Remediation of machine %q succeeded", machine.Name)
-                        nodeCopy := node.DeepCopy()
-                        nodeCopy.ObjectMeta.Labels = machineRemediation.Spec.SavedLabels
-                        nodeCopy.ObjectMeta.Annotations = machineRemediation.Spec.SavedAnnotations
+			nodeCopy := node.DeepCopy()
+			nodeCopy.ObjectMeta.Labels = machineRemediation.Spec.SavedLabels
+			nodeCopy.ObjectMeta.Annotations = machineRemediation.Spec.SavedAnnotations
 			delete(nodeCopy.Annotations, consts.AnnotationNodeMachineReboot)
-                        if err := bmr.client.Update(context.TODO(), nodeCopy); err != nil {
-                                return err
-                        }
+			if err := bmr.client.Update(context.TODO(), nodeCopy); err != nil {
+				return err
+			}
 
-                        klog.V(4).Infof("Reapplied labels and annotations to node %q", node.Name)
+			klog.V(4).Infof("Reapplied labels and annotations to node %q", node.Name)
 
 			bmr.recorder.Eventf(
 				machine,
