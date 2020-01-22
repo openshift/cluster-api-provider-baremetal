@@ -29,7 +29,7 @@ type MachineremediationV1alpha1Interface interface {
 	MachineRemediationsGetter
 }
 
-// MachineremediationV1alpha1Client is used to interact with features provided by the machineremediation.kubevirt.io group.
+// MachineremediationV1alpha1Client is used to interact with features provided by the machineremediation.metal3.io group.
 type MachineremediationV1alpha1Client struct {
 	restClient rest.Interface
 }

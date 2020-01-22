@@ -34,9 +34,9 @@ type FakeMachineRemediations struct {
 	ns   string
 }
 
-var machineremediationsResource = schema.GroupVersionResource{Group: "machineremediation.kubevirt.io", Version: "v1alpha1", Resource: "machineremediations"}
+var machineremediationsResource = schema.GroupVersionResource{Group: "machineremediation.metal3.io", Version: "v1alpha1", Resource: "machineremediations"}
 
-var machineremediationsKind = schema.GroupVersionKind{Group: "machineremediation.kubevirt.io", Version: "v1alpha1", Kind: "MachineRemediation"}
+var machineremediationsKind = schema.GroupVersionKind{Group: "machineremediation.metal3.io", Version: "v1alpha1", Kind: "MachineRemediation"}
 
 // Get takes name of the machineRemediation, and returns the corresponding machineRemediation object, and an error if there is any.
 func (c *FakeMachineRemediations) Get(name string, options v1.GetOptions) (result *v1alpha1.MachineRemediation, err error) {
