@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	glog "k8s.io/klog"
+	"k8s.io/klog"
 
 	"github.com/metal3-io/cluster-api-provider-baremetal/pkg/consts"
 
@@ -45,7 +45,7 @@ func GetMachinesByLabelSelector(c client.Client, selector *metav1.LabelSelector,
 // GetNodeByMachine get the node object by machine object
 func GetNodeByMachine(c client.Client, machine *mapiv1.Machine) (*v1.Node, error) {
 	if machine.Status.NodeRef == nil {
-		glog.Errorf("machine %s does not have NodeRef", machine.Name)
+		klog.Errorf("machine %s does not have NodeRef", machine.Name)
 		return nil, fmt.Errorf("machine %s does not have NodeRef", machine.Name)
 	}
 	node := &v1.Node{}
@@ -65,7 +65,7 @@ func GetMachineByNode(c client.Client, node *v1.Node) (*mapiv1.Machine, error) {
 	if !ok {
 		return nil, fmt.Errorf("No machine annotation for node %s", node.Name)
 	}
-	glog.Infof("Node %s is annotated with machine %s", node.Name, machineKey)
+	klog.Infof("Node %s is annotated with machine %s", node.Name, machineKey)
 
 	machine := &mapiv1.Machine{}
 	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)

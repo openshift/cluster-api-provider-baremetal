@@ -3,7 +3,7 @@ package nodereboot
 import (
 	"context"
 
-	glog "k8s.io/klog"
+	"k8s.io/klog"
 
 	mrv1 "github.com/metal3-io/cluster-api-provider-baremetal/pkg/apis/machineremediation/v1alpha1"
 	"github.com/metal3-io/cluster-api-provider-baremetal/pkg/consts"
@@ -64,7 +64,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileNodeReboot) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	glog.Infof("Reconciling node %s/%s\n", request.Namespace, request.Name)
+	klog.Infof("Reconciling node %s/%s\n", request.Namespace, request.Name)
 
 	// Get node from request
 	node := &corev1.Node{}
