@@ -31,17 +31,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
-	remediationStrategyAnnotation   = "machine.openshift.io/remediation-strategy"
-	remediationStrategyExternal     = "external-baremetal"
+	externalRemediationAnnotation   = "host.metal3.io/external-remediation"
 	remediationInProgressAnnotation = "remediation.metal3.io/remediation-in-progress"
 	bareMetalHostAnnotation         = "metal3.io/BareMetalHost"
 	rebootAnnotation                = "reboot.metal3.io/machine-remediation"
+	controllerName                  = "machine-remediation-controller"
 )
 
 /**
@@ -64,7 +65,7 @@ func newReconciler(mgr manager.Manager) *ReconcileMachineRemediation {
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
 func add(mgr manager.Manager, r reconcile.Reconciler, baremetalhostToMachine handler.ToRequestsFunc) error {
 	// Create a new controller
-	c, err := controller.New("machine-remediation-controller", mgr, controller.Options{Reconciler: r})
+	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
 	if err != nil {
 		return err
 	}
@@ -81,6 +82,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler, baremetalhostToMachine han
 }
 
 var _ reconcile.Reconciler = &ReconcileMachineRemediation{}
+var mrLog = log.Log.WithName(controllerName)
 
 // ReconcileMachineRemediation reconciles a Machine object
 type ReconcileMachineRemediation struct {
@@ -100,33 +102,28 @@ func (r *ReconcileMachineRemediation) Reconcile(request reconcile.Request) (reco
 		if errors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
+		mrLog.Error(err, "failed to retrieve Machine object")
 		return reconcile.Result{}, err
 	}
-	//todo nir watch nodes, machine, bmh
 
 	if len(machine.Annotations) == 0 {
 		return reconcile.Result{}, nil
 	}
 
-	remediationStrategy, needsRemediation := machine.Annotations[remediationStrategyAnnotation]
-
-	if !needsRemediation {
-		return reconcile.Result{}, nil
-	}
-
-	if remediationStrategy != remediationStrategyExternal {
+	if _, needsRemediation := machine.Annotations[externalRemediationAnnotation]; !needsRemediation {
 		return reconcile.Result{}, nil
 	}
 
 	baremetalhost, err := r.getBareMetalHostByMachine(machine)
 
 	if err != nil {
-		//todo nir error log
+		mrLog.Error(err, "failed to get BareMetalHost from Machine")
 		return reconcile.Result{}, err
 	}
 
 	if _, remediationInProgress := machine.Annotations[remediationInProgressAnnotation]; !remediationInProgress {
 		if !hasRebootAnnotation(baremetalhost) {
+			mrLog.Info("Found an unhealthy machine, requesting for power off", "Machine name", machine.Name)
 			return r.requestPowerOff(baremetalhost)
 		}
 
@@ -143,20 +140,24 @@ func (r *ReconcileMachineRemediation) Reconcile(request reconcile.Request) (reco
 
 	if err != nil {
 		if !errors.IsNotFound(err) {
+			mrLog.Error(err, "failed to get Node from Machine")
 			return reconcile.Result{}, err
 		}
 	}
 
 	//todo don't start remediation if the unhealthy node is the node I'm running on?
 	if node != nil && !baremetalhost.Status.PoweredOn {
+		mrLog.Info("Deleting node", "Node name", node.Name)
 		return r.deleteNode(node)
 	}
 
 	if !baremetalhost.Status.PoweredOn {
+		mrLog.Info("Node is deleted. Requesting power on", "Machine name", machine.Name)
 		return r.requestPowerOn(baremetalhost)
 	}
 
 	if node != nil {
+		mrLog.Info("Node is up again. Remediation completed.", "Machine name", machine.Name)
 		return r.deleteRemediationAnnotations(machine)
 	}
 
@@ -184,7 +185,7 @@ func (r *ReconcileMachineRemediation) deleteRemediationAnnotations(machine *mach
 	}
 
 	delete(machine.Annotations, remediationInProgressAnnotation)
-	delete(machine.Annotations, remediationStrategyAnnotation)
+	delete(machine.Annotations, externalRemediationAnnotation)
 
 	if err := r.Update(context.TODO(), machine); err != nil {
 		//todo log error
@@ -229,7 +230,7 @@ func (r *ReconcileMachineRemediation) requestPowerOff(baremetalhost *bmh.BareMet
 	baremetalhost.Annotations[rebootAnnotation] = ""
 
 	if err := r.Update(context.TODO(), baremetalhost); err != nil {
-		//todo nir error log
+		mrLog.Error(err, "failed to add reboot annotation", "Baremetalhost name", baremetalhost.Name)
 		return reconcile.Result{}, err
 	}
 
@@ -249,7 +250,7 @@ func (r *ReconcileMachineRemediation) requestPowerOn(baremetalhost *bmh.BareMeta
 	delete(baremetalhost.Annotations, rebootAnnotation)
 
 	if err := r.Client.Update(context.TODO(), baremetalhost); err != nil {
-		//todo nir error log
+		mrLog.Error(err, "failed to remove reboot annotation")
 		return reconcile.Result{}, err
 	}
 
@@ -260,9 +261,9 @@ func (r *ReconcileMachineRemediation) requestPowerOn(baremetalhost *bmh.BareMeta
 func (r *ReconcileMachineRemediation) deleteNode(node *corev1.Node) (reconcile.Result, error) {
 	if err := r.Delete(context.TODO(), node); err != nil {
 		if errors.IsNotFound(err) {
-			//todo log
 			return reconcile.Result{Requeue: true}, nil
 		}
+		mrLog.Error(err, "failed to delete Node", "Node name", node.Name)
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{Requeue: true}, nil
