@@ -38,11 +38,10 @@ import (
 )
 
 const (
-	externalRemediationAnnotation   = "host.metal3.io/external-remediation"
-	remediationInProgressAnnotation = "remediation.metal3.io/remediation-in-progress"
-	bareMetalHostAnnotation         = "metal3.io/BareMetalHost"
-	rebootAnnotation                = "reboot.metal3.io/machine-remediation"
-	controllerName                  = "machine-remediation-controller"
+	externalRemediationAnnotation = "host.metal3.io/external-remediation"
+	bareMetalHostAnnotation       = "metal3.io/BareMetalHost"
+	rebootAnnotation              = "reboot.metal3.io/machine-remediation"
+	controllerName                = "machine-remediation-controller"
 )
 
 /**
@@ -106,59 +105,48 @@ func (r *ReconcileMachineRemediation) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
-	if len(machine.Annotations) == 0 {
-		return reconcile.Result{}, nil
-	}
-
-	if _, needsRemediation := machine.Annotations[externalRemediationAnnotation]; !needsRemediation {
-		return reconcile.Result{}, nil
-	}
-
-	baremetalhost, err := r.getBareMetalHostByMachine(machine)
+	host, err := r.getBareMetalHostByMachine(machine)
 
 	if err != nil {
 		mrLog.Error(err, "failed to get BareMetalHost from Machine")
 		return reconcile.Result{}, err
 	}
 
-	if _, remediationInProgress := machine.Annotations[remediationInProgressAnnotation]; !remediationInProgress {
-		if !hasRebootAnnotation(baremetalhost) {
-			mrLog.Info("Found an unhealthy machine, requesting for power off", "Machine name", machine.Name)
-			return r.requestPowerOff(baremetalhost)
-		}
+	needsRemediation := false
+	if len(machine.Annotations) > 0 {
+		_, needsRemediation = machine.Annotations[externalRemediationAnnotation]
+	}
 
-		if baremetalhost.Status.PoweredOn {
-			return reconcile.Result{}, nil
-		}
+	if hasRebootAnnotation(host) && !host.Status.PoweredOn && !needsRemediation {
+		mrLog.Info("Found powered off host, no remediation is required. Requesting power on",
+			"Host name", host.Name, "Machine name", machine.Name)
+		return r.requestPowerOn(host)
+	}
 
-		//we need this annotation to differentiate between unhealthy machine that
-		//needs remediation to unhealthy machine that just got remediated
-		return r.addRemediationInProgressAnnotation(machine)
+	if !hasRebootAnnotation(host) && host.Status.PoweredOn && needsRemediation {
+		mrLog.Info("Found powered on host, remediation needed. Requesting power off",
+			"Host name", host.Name, "Machine name", machine.Name)
+		return r.requestPowerOff(host)
 	}
 
 	node, err := r.getNodeByMachine(machine)
 
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			mrLog.Error(err, "failed to get Node from Machine")
+			mrLog.Error(err, "failed to get Node from Machine", "Machine name", machine.Name)
 			return reconcile.Result{}, err
 		}
 	}
 
-	//todo don't start remediation if the unhealthy node is the node I'm running on?
-	if node != nil && !baremetalhost.Status.PoweredOn {
-		mrLog.Info("Deleting node", "Node name", node.Name)
-		return r.deleteNode(node)
-	}
+	if hasRebootAnnotation(host) && !host.Status.PoweredOn && needsRemediation {
+		if node != nil {
+			mrLog.Info("Deleting node", "Node name", node.Name, "Machine name", machine.Name)
+			return r.deleteNode(node)
+		}
 
-	if !baremetalhost.Status.PoweredOn {
-		mrLog.Info("Node is deleted. Requesting power on", "Machine name", machine.Name)
-		return r.requestPowerOn(baremetalhost)
-	}
-
-	if node != nil {
-		mrLog.Info("Node is up again. Remediation completed.", "Machine name", machine.Name)
-		return r.deleteRemediationAnnotations(machine)
+		mrLog.Info("Node is deleted. Remove remediation strategy annotation",
+			"Machine name", machine.Name)
+		return r.deleteExtRemediationAnnotation(machine)
 	}
 
 	return reconcile.Result{}, nil
@@ -178,21 +166,20 @@ func (r *ReconcileMachineRemediation) BareMetalHostToMachine(obj handler.MapObje
 	return []reconcile.Request{}
 }
 
-//deleteRemediationAnnotations deletes remediation-in-progress and remediation strategy annotations
-func (r *ReconcileMachineRemediation) deleteRemediationAnnotations(machine *machinev1.Machine) (reconcile.Result, error) {
+//deleteExtRemediationAnnotation deletes remediation strategy annotations
+func (r *ReconcileMachineRemediation) deleteExtRemediationAnnotation(machine *machinev1.Machine) (reconcile.Result, error) {
 	if len(machine.Annotations) == 0 {
 		return reconcile.Result{}, nil
 	}
 
-	delete(machine.Annotations, remediationInProgressAnnotation)
 	delete(machine.Annotations, externalRemediationAnnotation)
 
 	if err := r.Update(context.TODO(), machine); err != nil {
-		//todo log error
+		mrLog.Error(err, "failed to delete remediation annotation", "Machine name", machine.Name)
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
+	return reconcile.Result{Requeue: true}, nil
 }
 
 //hasRebootAnnotation checks if the reboot annotation exist on the baremetalhost
@@ -203,22 +190,6 @@ func hasRebootAnnotation(baremetalhost *bmh.BareMetalHost) bool {
 	_, exists := baremetalhost.Annotations[rebootAnnotation]
 
 	return exists
-}
-
-//addRemediationInProgressAnnotation adds a remediation-in-progress annotation to the machine
-func (r *ReconcileMachineRemediation) addRemediationInProgressAnnotation(machine *machinev1.Machine) (reconcile.Result, error) {
-	if machine.Annotations == nil {
-		machine.Annotations = make(map[string]string)
-	}
-
-	machine.Annotations[remediationInProgressAnnotation] = ""
-
-	if err := r.Update(context.TODO(), machine); err != nil {
-		//todo nir error log
-		return reconcile.Result{}, err
-	}
-
-	return reconcile.Result{Requeue: true}, nil
 }
 
 //requestPowerOn removes reboot annotation on baremetalhost which signal BMO to power on the machine
