@@ -1,3 +1,9 @@
+# Warning
+
+Master branch of this repo is now deprecated and development has moved to https://github.com/openshift/machine-api-operator.git
+
+This repo will only accept back ports for [4.1](https://github.com/openshift/cluster-api/tree/openshift-4.1-cluster-api-0.0.0-alpha.4) and [4.2](https://github.com/openshift/cluster-api/tree/openshift-4.2-cluster-api-0.1.0) bugfixes.
+
 # Cluster API
 
 Cluster API provides the ability to manage Kubernetes supportable hosts in the

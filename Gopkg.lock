@@ -361,8 +361,8 @@
   version = "v1.5.0"
 
 [[projects]]
-  branch = "openshift-4.2-cluster-api-0.1.0"
-  digest = "1:171b0ade450399f4dda18b9236531ea5d160c69745d03b36db74c85e72d86a11"
+  branch = "release-4.5"
+  digest = "1:a36d350cc349c5b130c10b718f19530e14ef50285616c5db863a9f6c42bf82c8"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis",
@@ -373,10 +373,11 @@
     "pkg/controller/error",
     "pkg/controller/machine",
     "pkg/drain",
+    "pkg/errors",
     "pkg/util",
   ]
   pruneopts = "T"
-  revision = "b2bf995e2bba939cf7ae0419b6a195676e9690d0"
+  revision = "b09907ac666894610ad44787def00be738c8a2f1"
 
 [[projects]]
   digest = "1:e5d0bd87abc2781d14e274807a470acd180f0499f8bf5bb18606e9ec22ad9de9"
