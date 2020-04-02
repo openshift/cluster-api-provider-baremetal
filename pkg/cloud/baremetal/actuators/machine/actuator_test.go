@@ -2,6 +2,8 @@ package machine
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"testing"
 	"time"
 
@@ -24,6 +26,7 @@ const (
 	testImageChecksumURL        = "http://172.22.0.1/images/rhcos-ootpa-latest.qcow2.md5sum"
 	testUserDataSecretName      = "worker-user-data"
 	testUserDataSecretNamespace = "myns"
+	testRemediationNamespace    = "remediationNs"
 )
 
 func TestChooseHost(t *testing.T) {
@@ -1494,5 +1497,205 @@ func TestNodeAddresses(t *testing.T) {
 				t.Errorf("expected Address %v, found %v", address, nodeAddresses[i])
 			}
 		}
+	}
+}
+
+func TestRemediation(t *testing.T) {
+	machine, machineNamespacedName := getMachine()
+	host, hostNamespacedName := getBareMetalHost()
+	node, nodeNamespacedName := geteNode()
+	linkMachineAndNode(machine, node)
+	host.Status.PoweredOn = true
+
+	//starting test with machine that needs remediation
+	machine.Annotations = make(map[string]string)
+	machine.Annotations[HostAnnotation] = host.Namespace + "/" + host.Name
+	machine.Annotations[externalRemediationAnnotation] = ""
+
+	scheme := runtime.NewScheme()
+	clusterapis.AddToScheme(scheme)
+	bmoapis.AddToScheme(scheme)
+	corev1.AddToScheme(scheme)
+
+	c := fakeclient.NewFakeClientWithScheme(scheme)
+
+	actuator, err := NewActuator(ActuatorParams{
+		Client: c,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	c.Create(context.TODO(), machine)
+	c.Create(context.TODO(), host)
+	c.Create(context.TODO(), node)
+
+	err = actuator.Update(context.TODO(), nil, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	host = &bmh.BareMetalHost{}
+	c.Get(context.TODO(), hostNamespacedName, host)
+	if !hasRebootAnnotation(host) {
+		t.Log("Expected reboot annotation on the host but none found")
+		t.Fail()
+	}
+
+	host.Status.PoweredOn = false
+	c.Update(context.TODO(), host)
+
+	err = actuator.Update(context.TODO(), nil, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	machine = &machinev1.Machine{}
+	c.Get(context.TODO(), machineNamespacedName, machine)
+
+	if _, exists := machine.Annotations[remediationInProgressAnnotation]; !exists {
+		t.Log("Expected remediation-in-progress annotation to exist on machine but none found")
+		t.Fail()
+	}
+
+	err = actuator.Update(context.TODO(), nil, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	node = &corev1.Node{}
+	err = c.Get(context.TODO(), nodeNamespacedName, node)
+	if !errors.IsNotFound(err) {
+		t.Log("Expected node to be deleted")
+		t.Fail()
+	}
+
+	err = actuator.Update(context.TODO(), nil, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	host = &bmh.BareMetalHost{}
+	c.Get(context.TODO(), hostNamespacedName, host)
+
+	if hasRebootAnnotation(host) {
+		t.Log("Expected reboot annotation to be removed but it's still there")
+		t.Fail()
+	}
+
+	//simulate power on and node that comes up again
+	host.Status.PoweredOn = true
+	c.Update(context.TODO(), host)
+
+	node, _ = geteNode()
+	linkMachineAndNode(machine, node)
+	c.Create(context.TODO(), node)
+	c.Update(context.TODO(), machine)
+
+	err = actuator.Update(context.TODO(), nil, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	machine = &machinev1.Machine{}
+	c.Get(context.TODO(), machineNamespacedName, machine)
+
+	if len(machine.Annotations) > 0 {
+		if _, exists := machine.Annotations[externalRemediationAnnotation]; exists {
+			t.Log("Expected external remediation annotation to be removed but it's still there")
+			t.Fail()
+		}
+
+		if _, exists := machine.Annotations[remediationInProgressAnnotation]; exists {
+			t.Log("Expected remediation-in-progress annotation to be removed but it's still there")
+			t.Fail()
+		}
+	}
+
+	//make sure nothing happens after remediation
+	err = actuator.Update(context.TODO(), nil, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	err = actuator.Update(context.TODO(), nil, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	host = &bmh.BareMetalHost{}
+	c.Get(context.TODO(), hostNamespacedName, host)
+
+	if hasRebootAnnotation(host) {
+		t.Log("Expected reboot annotation to be removed but it's still there, maybe reboot loops?")
+		t.Fail()
+	}
+}
+
+func geteNode() (*corev1.Node, types.NamespacedName) {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:      "node1",
+		Namespace: testRemediationNamespace,
+	},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Node",
+			APIVersion: corev1.SchemeGroupVersion.String(),
+		}}
+
+	nodeNamespacedName := types.NamespacedName{
+		Namespace: node.ObjectMeta.Namespace,
+		Name:      node.ObjectMeta.Name,
+	}
+
+	return node, nodeNamespacedName
+}
+
+func getBareMetalHost() (*bmh.BareMetalHost, types.NamespacedName) {
+	host := &bmh.BareMetalHost{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "host1",
+			Namespace: "default",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "BareMetalHost",
+			APIVersion: bmh.SchemeGroupVersion.String(),
+		},
+		Spec:   bmh.BareMetalHostSpec{},
+		Status: bmh.BareMetalHostStatus{},
+	}
+
+	hostNamespacedName := types.NamespacedName{
+		Namespace: host.ObjectMeta.Namespace,
+		Name:      host.ObjectMeta.Name,
+	}
+
+	return host, hostNamespacedName
+}
+
+func getMachine() (*machinev1.Machine, types.NamespacedName) {
+	machine := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine1",
+			Namespace: testRemediationNamespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Machine",
+			APIVersion: machinev1.SchemeGroupVersion.String(),
+		},
+		Status: machinev1.MachineStatus{},
+	}
+
+	machineNamespacedName := types.NamespacedName{
+		Namespace: machine.ObjectMeta.Namespace,
+		Name:      machine.ObjectMeta.Name,
+	}
+
+	return machine, machineNamespacedName
+}
+
+func linkMachineAndNode(machine *machinev1.Machine, node *corev1.Node) {
+	machine.Status.NodeRef = &corev1.ObjectReference{
+		Kind:      "Node",
+		Namespace: testRemediationNamespace,
+		Name:      node.Name,
 	}
 }

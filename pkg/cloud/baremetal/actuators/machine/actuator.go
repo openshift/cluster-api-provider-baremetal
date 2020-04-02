@@ -45,8 +45,11 @@ const (
 	ProviderName = "baremetal"
 	// HostAnnotation is the key for an annotation that should go on a Machine to
 	// reference what BareMetalHost it corresponds to.
-	HostAnnotation = "metal3.io/BareMetalHost"
-	requeueAfter   = time.Second * 30
+	HostAnnotation                  = "metal3.io/BareMetalHost"
+	requeueAfter                    = time.Second * 30
+	externalRemediationAnnotation   = "host.metal3.io/external-remediation"
+	remediationInProgressAnnotation = "remediation.metal3.io/remediation-in-progress"
+	rebootAnnotation                = "reboot.metal3.io/machine-remediation"
 )
 
 // Add RBAC rules to access cluster-api resources
@@ -209,6 +212,10 @@ func (a *Actuator) Update(ctx context.Context, cluster *clusterv1.Cluster, machi
 
 	err = a.ensureAnnotation(ctx, machine, host)
 	if err != nil {
+		return err
+	}
+
+	if err := a.remediateIfNeeded(ctx, machine, host); err != nil {
 		return err
 	}
 
@@ -533,4 +540,164 @@ func (a *Actuator) nodeAddresses(host *bmh.BareMetalHost) ([]corev1.NodeAddress,
 	}
 
 	return addrs, nil
+}
+
+//deleteRemediationAnnotations deletes remediation-in-progress and remediation strategy annotations
+func (a *Actuator) deleteRemediationAnnotations(ctx context.Context, machine *machinev1.Machine) error {
+	if len(machine.Annotations) == 0 {
+		return nil
+	}
+
+	delete(machine.Annotations, remediationInProgressAnnotation)
+	delete(machine.Annotations, externalRemediationAnnotation)
+
+	if err := a.client.Update(ctx, machine); err != nil {
+		log.Printf("Failed to delete annotations of Machine: %s", machine.Name)
+		return err
+	}
+
+	return nil
+}
+
+//hasRebootAnnotation checks if the reboot annotation exist on the baremetalhost
+func hasRebootAnnotation(baremetalhost *bmh.BareMetalHost) (exists bool) {
+	if len(baremetalhost.Annotations) > 0 {
+		_, exists = baremetalhost.Annotations[rebootAnnotation]
+	}
+	return
+}
+
+//addRemediationInProgressAnnotation adds a remediation-in-progress annotation to the machine
+func (a *Actuator) addRemediationInProgressAnnotation(ctx context.Context, machine *machinev1.Machine) error {
+	if machine.Annotations == nil {
+		machine.Annotations = make(map[string]string)
+	}
+
+	machine.Annotations[remediationInProgressAnnotation] = ""
+
+	err := a.client.Update(ctx, machine)
+	if err != nil {
+		log.Printf("Failed to add remediation in progess annotation to %s: %s", machine.Name, err.Error())
+	}
+
+	return err
+}
+
+//requestPowerOn removes reboot annotation on baremetalhost which signal BMO to power on the machine
+func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareMetalHost) error {
+	if baremetalhost.Annotations == nil {
+		baremetalhost.Annotations = make(map[string]string)
+	}
+
+	baremetalhost.Annotations[rebootAnnotation] = ""
+
+	err := a.client.Update(ctx, baremetalhost)
+	if err != nil {
+		log.Printf("failed to add reboot annotation to %s: %s", baremetalhost.Name, err.Error())
+	}
+
+	return err
+}
+
+//requestPowerOn adds reboot annotation on baremetalhost which signal BMO to power off the machine
+func (a *Actuator) requestPowerOn(ctx context.Context, baremetalhost *bmh.BareMetalHost) error {
+	if baremetalhost.Annotations == nil {
+		baremetalhost.Annotations = make(map[string]string)
+	}
+
+	if _, rebootPending := baremetalhost.Annotations[rebootAnnotation]; !rebootPending {
+		return &clustererror.RequeueAfterError{}
+	}
+
+	delete(baremetalhost.Annotations, rebootAnnotation)
+
+	err := a.client.Update(ctx, baremetalhost)
+	if err != nil {
+		log.Printf("failed to remove reboot annotation from %s: %s", baremetalhost.Name, err.Error())
+	}
+
+	return err
+}
+
+// deleteMachineNode deletes the node that mapped to specified machine
+func (a *Actuator) deleteNode(ctx context.Context, node *corev1.Node) error {
+	err := a.client.Delete(ctx, node)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return &clustererror.RequeueAfterError{}
+		}
+		log.Printf("Failed to delete node %s: %s", node.Name, err.Error())
+	}
+	return err
+}
+
+// getNodeByMachine returns the node object referenced by machine
+func (a *Actuator) getNodeByMachine(ctx context.Context, machine *machinev1.Machine) (*corev1.Node, error) {
+	if machine.Status.NodeRef == nil {
+		return nil, errors.NewNotFound(corev1.Resource("ObjectReference"), machine.Name)
+	}
+
+	node := &corev1.Node{}
+	key := client.ObjectKey{
+		Name:      machine.Status.NodeRef.Name,
+		Namespace: machine.Status.NodeRef.Namespace,
+	}
+
+	if err := a.client.Get(ctx, key, node); err != nil {
+		return nil, err
+	}
+	return node, nil
+}
+
+//remediateIfNeeded will try to remediate unhealthy nodes (annotated by MHC)
+func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Machine, baremetalhost *bmh.BareMetalHost) error {
+	if len(machine.Annotations) == 0 {
+		return nil
+	}
+
+	if _, needsRemediation := machine.Annotations[externalRemediationAnnotation]; !needsRemediation {
+		return nil
+	}
+
+	if _, remediationInProgress := machine.Annotations[remediationInProgressAnnotation]; !remediationInProgress {
+		if !hasRebootAnnotation(baremetalhost) {
+			log.Printf("Found an unhealthy machine, requesting power off. Machine name: %s", machine.Name)
+			return a.requestPowerOff(ctx, baremetalhost)
+		}
+
+		if baremetalhost.Status.PoweredOn {
+			return nil
+		}
+
+		//we need this annotation to differentiate between unhealthy machine that
+		//needs remediation to unhealthy machine that just got remediated
+		return a.addRemediationInProgressAnnotation(ctx, machine)
+	}
+
+	node, err := a.getNodeByMachine(ctx, machine)
+
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			log.Printf("failed to get Node from Machine %s: %s", machine.Name, err.Error())
+			return err
+		}
+	}
+
+	if node != nil && !baremetalhost.Status.PoweredOn {
+		log.Printf("Deleting Node %s", node.Name)
+		return a.deleteNode(ctx, node)
+	}
+
+	if !baremetalhost.Status.PoweredOn {
+		log.Printf("Node is deleted. Requesting power on. Machine name: %s, Host name: %s",
+			machine.Name, baremetalhost.Name)
+		return a.requestPowerOn(ctx, baremetalhost)
+	}
+
+	if node != nil {
+		log.Printf("Node is up again. Remediation completed. Machine name: %s", machine.Name)
+		return a.deleteRemediationAnnotations(ctx, machine)
+	}
+
+	return nil
 }
