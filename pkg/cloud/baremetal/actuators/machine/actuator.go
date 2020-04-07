@@ -562,8 +562,8 @@ func (a *Actuator) deleteRemediationAnnotations(ctx context.Context, machine *ma
 	return nil
 }
 
-//hasRebootAnnotation checks if the reboot annotation exist on the baremetalhost
-func hasRebootAnnotation(baremetalhost *bmh.BareMetalHost) (exists bool) {
+//hasPowerOffRequestAnnotation checks if the requestPowerOffAnnotation exists on the baremetalhost
+func hasPowerOffRequestAnnotation(baremetalhost *bmh.BareMetalHost) (exists bool) {
 	if len(baremetalhost.Annotations) > 0 {
 		_, exists = baremetalhost.Annotations[requestPowerOffAnnotation]
 	}
@@ -586,7 +586,7 @@ func (a *Actuator) addRemediationInProgressAnnotation(ctx context.Context, machi
 	return err
 }
 
-//requestPowerOff adds reboot annotation on baremetalhost which signal BMO to power off the machine
+//requestPowerOff adds requestPowerOffAnnotation on baremetalhost which signals BMO to power off the machine
 func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareMetalHost) error {
 	if baremetalhost.Annotations == nil {
 		baremetalhost.Annotations = make(map[string]string)
@@ -596,19 +596,19 @@ func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareM
 
 	err := a.client.Update(ctx, baremetalhost)
 	if err != nil {
-		log.Printf("failed to add reboot annotation to %s: %s", baremetalhost.Name, err.Error())
+		log.Printf("failed to add power off request annotation to %s: %s", baremetalhost.Name, err.Error())
 	}
 
 	return err
 }
 
-//requestPowerOn removes reboot annotation from baremetalhost which signal BMO to power on the machine
+//requestPowerOn removes requestPowerOffAnnotation from baremetalhost which signals BMO to power on the machine
 func (a *Actuator) requestPowerOn(ctx context.Context, baremetalhost *bmh.BareMetalHost) error {
 	if baremetalhost.Annotations == nil {
 		baremetalhost.Annotations = make(map[string]string)
 	}
 
-	if _, rebootPending := baremetalhost.Annotations[requestPowerOffAnnotation]; !rebootPending {
+	if _, powerOffRequestExists := baremetalhost.Annotations[requestPowerOffAnnotation]; !powerOffRequestExists {
 		return &clustererror.RequeueAfterError{RequeueAfter: time.Second * 5}
 	}
 
@@ -616,7 +616,7 @@ func (a *Actuator) requestPowerOn(ctx context.Context, baremetalhost *bmh.BareMe
 
 	err := a.client.Update(ctx, baremetalhost)
 	if err != nil {
-		log.Printf("failed to remove reboot annotation from %s: %s", baremetalhost.Name, err.Error())
+		log.Printf("failed to power-off request annotation from %s: %s", baremetalhost.Name, err.Error())
 	}
 
 	return err
@@ -652,7 +652,16 @@ func (a *Actuator) getNodeByMachine(ctx context.Context, machine *machinev1.Mach
 	return node, nil
 }
 
-//remediateIfNeeded will try to remediate unhealthy nodes (annotated by MHC)
+/*
+remediateIfNeeded will try to remediate unhealthy machines (annotated by MHC) by power-cycle the host
+The full remediation flow is:
+1) Power off the host
+2) Add remediation-in-progress annotation to the unhealthy Machine
+3) Delete the node
+4) Power on the host
+5) Wait for the node the come up
+6) Remove remediation-in-progress annotation and the annotation added by MAO to signal the machine is unhealthy
+ */
 func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Machine, baremetalhost *bmh.BareMetalHost) error {
 	if len(machine.Annotations) == 0 {
 		return nil
@@ -663,11 +672,12 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 	}
 
 	if _, remediationInProgress := machine.Annotations[remediationInProgressAnnotation]; !remediationInProgress {
-		if !hasRebootAnnotation(baremetalhost) {
+		if !hasPowerOffRequestAnnotation(baremetalhost) {
 			log.Printf("Found an unhealthy machine, requesting power off. Machine name: %s", machine.Name)
 			return a.requestPowerOff(ctx, baremetalhost)
 		}
 
+		//hold remediation until the power off request is fulfilled
 		if baremetalhost.Status.PoweredOn {
 			return nil
 		}
@@ -688,6 +698,13 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 
 	if node != nil && !baremetalhost.Status.PoweredOn {
 		log.Printf("Deleting Node %s associated with Machine %s", node.Name, machine.Name)
+		/*
+		Delete the node only after the host is powered off. Otherwise, if we would delete the node
+		when the host is powered on, the scheduler would assign the workload to other nodes, with the
+		possibility that two instances of the same application are running in parallel. This might result
+		in corruption or other issues for applications with singleton requirement. After the host is powered
+		off we know for sure that it is safe to re-assign that workload to other nodes.
+		 */
 		return a.deleteNode(ctx, node)
 	}
 

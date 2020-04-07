@@ -1537,7 +1537,7 @@ func TestRemediation(t *testing.T) {
 
 	host = &bmh.BareMetalHost{}
 	c.Get(context.TODO(), hostNamespacedName, host)
-	if !hasRebootAnnotation(host) {
+	if !hasPowerOffRequestAnnotation(host) {
 		t.Log("Expected reboot annotation on the host but none found")
 		t.Fail()
 	}
@@ -1578,7 +1578,7 @@ func TestRemediation(t *testing.T) {
 	host = &bmh.BareMetalHost{}
 	c.Get(context.TODO(), hostNamespacedName, host)
 
-	if hasRebootAnnotation(host) {
+	if hasPowerOffRequestAnnotation(host) {
 		t.Log("Expected reboot annotation to be removed but it's still there")
 		t.Fail()
 	}
@@ -1625,7 +1625,7 @@ func TestRemediation(t *testing.T) {
 	host = &bmh.BareMetalHost{}
 	c.Get(context.TODO(), hostNamespacedName, host)
 
-	if hasRebootAnnotation(host) {
+	if hasPowerOffRequestAnnotation(host) {
 		t.Log("Expected reboot annotation to be removed but it's still there, maybe reboot loops?")
 		t.Fail()
 	}
