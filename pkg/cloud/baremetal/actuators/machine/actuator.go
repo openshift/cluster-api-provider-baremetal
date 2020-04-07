@@ -681,24 +681,24 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			log.Printf("failed to get Node from Machine %s: %s", machine.Name, err.Error())
+			log.Printf("Failed to get Node from Machine %s: %s", machine.Name, err.Error())
 			return err
 		}
 	}
 
 	if node != nil && !baremetalhost.Status.PoweredOn {
-		log.Printf("Deleting Node %s", node.Name)
+		log.Printf("Deleting Node %s associated with Machine %s", node.Name, machine.Name)
 		return a.deleteNode(ctx, node)
 	}
 
 	if !baremetalhost.Status.PoweredOn {
-		log.Printf("Node is deleted. Requesting power on. Machine name: %s, Host name: %s",
-			machine.Name, baremetalhost.Name)
+		log.Printf("Requesting Host %s power on for Machine %s",
+			baremetalhost.Name, machine.Name)
 		return a.requestPowerOn(ctx, baremetalhost)
 	}
 
 	if node != nil {
-		log.Printf("Node is up again. Remediation completed. Machine name: %s", machine.Name)
+		log.Printf("Node %s is available, remediation of Machine %s complete", node.Name, machine.Name)
 		return a.deleteRemediationAnnotations(ctx, machine)
 	}
 
