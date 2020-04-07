@@ -592,6 +592,10 @@ func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareM
 		baremetalhost.Annotations = make(map[string]string)
 	}
 
+	if _, powerOffRequestExists := baremetalhost.Annotations[requestPowerOffAnnotation]; powerOffRequestExists {
+		return &clustererror.RequeueAfterError{RequeueAfter: time.Second * 5}
+	}
+
 	baremetalhost.Annotations[requestPowerOffAnnotation] = ""
 
 	err := a.client.Update(ctx, baremetalhost)
