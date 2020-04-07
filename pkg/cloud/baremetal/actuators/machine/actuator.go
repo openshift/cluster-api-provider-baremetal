@@ -49,7 +49,7 @@ const (
 	requeueAfter                    = time.Second * 30
 	externalRemediationAnnotation   = "host.metal3.io/external-remediation"
 	remediationInProgressAnnotation = "remediation.metal3.io/remediation-in-progress"
-	rebootAnnotation                = "reboot.metal3.io/machine-remediation"
+	requestPowerOffAnnotation       = "reboot.metal3.io/machine-remediation"
 )
 
 // Add RBAC rules to access cluster-api resources
@@ -565,7 +565,7 @@ func (a *Actuator) deleteRemediationAnnotations(ctx context.Context, machine *ma
 //hasRebootAnnotation checks if the reboot annotation exist on the baremetalhost
 func hasRebootAnnotation(baremetalhost *bmh.BareMetalHost) (exists bool) {
 	if len(baremetalhost.Annotations) > 0 {
-		_, exists = baremetalhost.Annotations[rebootAnnotation]
+		_, exists = baremetalhost.Annotations[requestPowerOffAnnotation]
 	}
 	return
 }
@@ -592,7 +592,7 @@ func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareM
 		baremetalhost.Annotations = make(map[string]string)
 	}
 
-	baremetalhost.Annotations[rebootAnnotation] = ""
+	baremetalhost.Annotations[requestPowerOffAnnotation] = ""
 
 	err := a.client.Update(ctx, baremetalhost)
 	if err != nil {
@@ -608,11 +608,11 @@ func (a *Actuator) requestPowerOn(ctx context.Context, baremetalhost *bmh.BareMe
 		baremetalhost.Annotations = make(map[string]string)
 	}
 
-	if _, rebootPending := baremetalhost.Annotations[rebootAnnotation]; !rebootPending {
+	if _, rebootPending := baremetalhost.Annotations[requestPowerOffAnnotation]; !rebootPending {
 		return &clustererror.RequeueAfterError{}
 	}
 
-	delete(baremetalhost.Annotations, rebootAnnotation)
+	delete(baremetalhost.Annotations, requestPowerOffAnnotation)
 
 	err := a.client.Update(ctx, baremetalhost)
 	if err != nil {
