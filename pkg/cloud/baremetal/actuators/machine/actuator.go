@@ -673,7 +673,7 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 		}
 
 		//we need this annotation to differentiate between unhealthy machine that
-		//needs remediation to unhealthy machine that just got remediated
+		//needs remediation, and an unhealthy machine that just got remediated
 		return a.addRemediationInProgressAnnotation(ctx, machine)
 	}
 
