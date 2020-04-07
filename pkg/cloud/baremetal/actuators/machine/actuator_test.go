@@ -728,7 +728,7 @@ func TestEnsureAnnotation(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = actuator.ensureAnnotation(context.TODO(), &tc.Machine, &tc.Host)
+		_, err = actuator.ensureAnnotation(context.TODO(), &tc.Machine, &tc.Host)
 		if err != nil {
 			t.Errorf("unexpected error %v", err)
 		}

@@ -127,7 +127,7 @@ func (a *Actuator) Create(ctx context.Context, cluster *clusterv1.Cluster, machi
 		return err
 	}
 
-	err, _ = a.ensureAnnotation(ctx, machine, host)
+	_, err = a.ensureAnnotation(ctx, machine, host)
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func (a *Actuator) Update(ctx context.Context, cluster *clusterv1.Cluster, machi
 		return fmt.Errorf("host not found for machine %s", machine.Name)
 	}
 
-	err, dirty := a.ensureAnnotation(ctx, machine, host)
+	dirty, err := a.ensureAnnotation(ctx, machine, host)
 
 	if err != nil {
 		return err
@@ -417,7 +417,7 @@ func (a *Actuator) setHostSpec(ctx context.Context, host *bmh.BareMetalHost, mac
 
 // ensureAnnotation makes sure the machine has an annotation that references the
 // host and uses the API to update the machine if necessary.
-func (a *Actuator) ensureAnnotation(ctx context.Context, machine *machinev1.Machine, host *bmh.BareMetalHost) (error, bool) {
+func (a *Actuator) ensureAnnotation(ctx context.Context, machine *machinev1.Machine, host *bmh.BareMetalHost) (bool, error) {
 	annotations := machine.ObjectMeta.GetAnnotations()
 	if annotations == nil {
 		annotations = make(map[string]string)
@@ -425,18 +425,18 @@ func (a *Actuator) ensureAnnotation(ctx context.Context, machine *machinev1.Mach
 	hostKey, err := cache.MetaNamespaceKeyFunc(host)
 	if err != nil {
 		log.Printf("Error parsing annotation value \"%s\": %v", hostKey, err)
-		return err, false
+		return false, err
 	}
 	existing, ok := annotations[HostAnnotation]
 	if ok {
 		if existing == hostKey {
-			return nil, false
+			return false, nil
 		}
 		log.Printf("Warning: found stray annotation for host %s on machine %s. Overwriting.", existing, machine.Name)
 	}
 	annotations[HostAnnotation] = hostKey
 	machine.ObjectMeta.SetAnnotations(annotations)
-	return a.client.Update(ctx, machine), true
+	return true, a.client.Update(ctx, machine)
 }
 
 // setError sets the ErrorMessage and ErrorReason fields on the machine and logs
