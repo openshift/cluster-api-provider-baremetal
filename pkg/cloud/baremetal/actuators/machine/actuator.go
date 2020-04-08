@@ -724,11 +724,12 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 		return a.requestPowerOn(ctx, baremetalhost)
 	}
 
-	// node is now available again
-	if node != nil {
-		log.Printf("Node %s is available, remediation of Machine %s complete", node.Name, machine.Name)
-		return a.deleteRemediationAnnotations(ctx, machine)
+	//node is still not running, so we requeue
+	if node == nil {
+		return &clustererror.RequeueAfterError{RequeueAfter: time.Second * 5}
 	}
 
-	return nil
+	// node is now available again
+	log.Printf("Node %s is available, remediation of Machine %s complete", node.Name, machine.Name)
+	return a.deleteRemediationAnnotations(ctx, machine)
 }
