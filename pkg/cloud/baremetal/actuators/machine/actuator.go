@@ -628,14 +628,19 @@ func (a *Actuator) requestPowerOn(ctx context.Context, baremetalhost *bmh.BareMe
 
 // deleteMachineNode deletes the node that mapped to specified machine
 func (a *Actuator) deleteNode(ctx context.Context, node *corev1.Node) error {
+	if !node.DeletionTimestamp.IsZero() {
+		return &clustererror.RequeueAfterError{RequeueAfter: time.Second*2}
+	}
+
 	err := a.client.Delete(ctx, node)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return &clustererror.RequeueAfterError{}
 		}
 		log.Printf("Failed to delete node %s: %s", node.Name, err.Error())
+		return err
 	}
-	return err
+	return &clustererror.RequeueAfterError{RequeueAfter: time.Second*2}
 }
 
 // getNodeByMachine returns the node object referenced by machine
