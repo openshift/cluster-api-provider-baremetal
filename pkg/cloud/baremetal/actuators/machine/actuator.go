@@ -712,12 +712,14 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 		return a.deleteNode(ctx, node)
 	}
 
+	// node is deleted, we can power on the host
 	if !baremetalhost.Status.PoweredOn {
 		log.Printf("Requesting Host %s power on for Machine %s",
 			baremetalhost.Name, machine.Name)
 		return a.requestPowerOn(ctx, baremetalhost)
 	}
 
+	// node is now available again
 	if node != nil {
 		log.Printf("Node %s is available, remediation of Machine %s complete", node.Name, machine.Name)
 		return a.deleteRemediationAnnotations(ctx, machine)
