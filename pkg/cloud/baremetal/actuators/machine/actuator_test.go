@@ -1553,8 +1553,8 @@ func TestRemediation(t *testing.T) {
 	machine = &machinev1.Machine{}
 	c.Get(context.TODO(), machineNamespacedName, machine)
 
-	if _, exists := machine.Annotations[remediationInProgressAnnotation]; !exists {
-		t.Log("Expected remediation-in-progress annotation to exist on machine but none found")
+	if _, exists := machine.Annotations[poweredOffForRemediation]; !exists {
+		t.Log("Expected powered-off-for-remediation annotation to exist on machine but none found")
 		t.Fail()
 	}
 
@@ -1606,8 +1606,8 @@ func TestRemediation(t *testing.T) {
 			t.Fail()
 		}
 
-		if _, exists := machine.Annotations[remediationInProgressAnnotation]; exists {
-			t.Log("Expected remediation-in-progress annotation to be removed but it's still there")
+		if _, exists := machine.Annotations[poweredOffForRemediation]; exists {
+			t.Log("Expected powered-off-for-remediation annotation to be removed but it's still there")
 			t.Fail()
 		}
 	}

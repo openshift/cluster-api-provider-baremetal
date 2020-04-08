@@ -48,7 +48,7 @@ const (
 	HostAnnotation                  = "metal3.io/BareMetalHost"
 	requeueAfter                    = time.Second * 30
 	externalRemediationAnnotation   = "host.metal3.io/external-remediation"
-	remediationInProgressAnnotation = "remediation.metal3.io/remediation-in-progress"
+	poweredOffForRemediation        = "remediation.metal3.io/powered-off-for-remediation"
 	requestPowerOffAnnotation       = "reboot.metal3.io/machine-remediation"
 )
 
@@ -545,13 +545,13 @@ func (a *Actuator) nodeAddresses(host *bmh.BareMetalHost) ([]corev1.NodeAddress,
 	return addrs, nil
 }
 
-//deleteRemediationAnnotations deletes remediation-in-progress and remediation strategy annotations
+//deleteRemediationAnnotations deletes poweredOffForRemediation and remediation strategy annotations
 func (a *Actuator) deleteRemediationAnnotations(ctx context.Context, machine *machinev1.Machine) error {
 	if len(machine.Annotations) == 0 {
 		return nil
 	}
 
-	delete(machine.Annotations, remediationInProgressAnnotation)
+	delete(machine.Annotations, poweredOffForRemediation)
 	delete(machine.Annotations, externalRemediationAnnotation)
 
 	if err := a.client.Update(ctx, machine); err != nil {
@@ -570,13 +570,13 @@ func hasPowerOffRequestAnnotation(baremetalhost *bmh.BareMetalHost) (exists bool
 	return
 }
 
-//addRemediationInProgressAnnotation adds a remediation-in-progress annotation to the machine
-func (a *Actuator) addRemediationInProgressAnnotation(ctx context.Context, machine *machinev1.Machine) error {
+//addPoweredOffForRemediationAnnotation adds a powered-off-for-remediation annotation to the machine
+func (a *Actuator) addPoweredOffForRemediationAnnotation(ctx context.Context, machine *machinev1.Machine) error {
 	if machine.Annotations == nil {
 		machine.Annotations = make(map[string]string)
 	}
 
-	machine.Annotations[remediationInProgressAnnotation] = ""
+	machine.Annotations[poweredOffForRemediation] = ""
 
 	err := a.client.Update(ctx, machine)
 	if err != nil {
@@ -660,11 +660,11 @@ func (a *Actuator) getNodeByMachine(ctx context.Context, machine *machinev1.Mach
 remediateIfNeeded will try to remediate unhealthy machines (annotated by MHC) by power-cycle the host
 The full remediation flow is:
 1) Power off the host
-2) Add remediation-in-progress annotation to the unhealthy Machine
+2) Add poweredOffForRemediation annotation to the unhealthy Machine
 3) Delete the node
 4) Power on the host
 5) Wait for the node the come up
-6) Remove remediation-in-progress annotation and the annotation added by MAO to signal the machine is unhealthy
+6) Remove poweredOffForRemediation annotation and the annotation added by MAO to signal the machine is unhealthy
  */
 func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Machine, baremetalhost *bmh.BareMetalHost) error {
 	if len(machine.Annotations) == 0 {
@@ -675,7 +675,7 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 		return nil
 	}
 
-	if _, remediationInProgress := machine.Annotations[remediationInProgressAnnotation]; !remediationInProgress {
+	if _, poweredOffForRemediation := machine.Annotations[poweredOffForRemediation]; !poweredOffForRemediation {
 		if !hasPowerOffRequestAnnotation(baremetalhost) {
 			log.Printf("Found an unhealthy machine, requesting power off. Machine name: %s", machine.Name)
 			return a.requestPowerOff(ctx, baremetalhost)
@@ -688,7 +688,7 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 
 		//we need this annotation to differentiate between unhealthy machine that
 		//needs remediation, and an unhealthy machine that just got remediated
-		return a.addRemediationInProgressAnnotation(ctx, machine)
+		return a.addPoweredOffForRemediationAnnotation(ctx, machine)
 	}
 
 	node, err := a.getNodeByMachine(ctx, machine)
