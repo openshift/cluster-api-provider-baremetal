@@ -49,7 +49,7 @@ const (
 	requeueAfter                    = time.Second * 30
 	externalRemediationAnnotation   = "host.metal3.io/external-remediation"
 	poweredOffForRemediation        = "remediation.metal3.io/powered-off-for-remediation"
-	requestPowerOffAnnotation       = "reboot.metal3.io/machine-remediation"
+	requestPowerOffAnnotation       = "reboot.metal3.io/capbm-requested-power-off"
 )
 
 // Add RBAC rules to access cluster-api resources
