@@ -23,7 +23,7 @@ API used with this `cluster-api` provider.
 
 ## Machine Remediation
 
-MachinHealthCheck Controller in [Machine-API operator](https://github.com/openshift/machine-api-operator) is checking Node's health.
+MachineHealthCheck Controller in [Machine-API operator](https://github.com/openshift/machine-api-operator) is checking Node's health.
 If you would like to remediate unhealthy Machines you should add the following
 to MachineHealthCheck CRD:
 ```
