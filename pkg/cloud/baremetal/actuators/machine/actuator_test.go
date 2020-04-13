@@ -1558,7 +1558,9 @@ func TestRemediation(t *testing.T) {
 	}
 
 	err = actuator.Update(context.TODO(), nil, machine)
-	if err != nil {
+	if err == nil {
+		t.Errorf("expected a requeue err but err was nil")
+	} else {
 		switch err.(type) {
 			case *clustererror.RequeueAfterError:
 				break
