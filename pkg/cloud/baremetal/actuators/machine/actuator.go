@@ -417,6 +417,7 @@ func (a *Actuator) setHostSpec(ctx context.Context, host *bmh.BareMetalHost, mac
 
 // ensureAnnotation makes sure the machine has an annotation that references the
 // host and uses the API to update the machine if necessary.
+// it returns a boolean to indicate if the machine object was changed
 func (a *Actuator) ensureAnnotation(ctx context.Context, machine *machinev1.Machine, host *bmh.BareMetalHost) (bool, error) {
 	annotations := machine.ObjectMeta.GetAnnotations()
 	if annotations == nil {
@@ -629,7 +630,7 @@ func (a *Actuator) requestPowerOn(ctx context.Context, baremetalhost *bmh.BareMe
 // deleteMachineNode deletes the node that mapped to specified machine
 func (a *Actuator) deleteNode(ctx context.Context, node *corev1.Node) error {
 	if !node.DeletionTimestamp.IsZero() {
-		return &clustererror.RequeueAfterError{RequeueAfter: time.Second*2}
+		return &clustererror.RequeueAfterError{RequeueAfter: time.Second * 2}
 	}
 
 	err := a.client.Delete(ctx, node)
@@ -640,7 +641,7 @@ func (a *Actuator) deleteNode(ctx context.Context, node *corev1.Node) error {
 		log.Printf("Failed to delete node %s: %s", node.Name, err.Error())
 		return err
 	}
-	return &clustererror.RequeueAfterError{RequeueAfter: time.Second*2}
+	return &clustererror.RequeueAfterError{RequeueAfter: time.Second * 2}
 }
 
 // getNodeByMachine returns the node object referenced by machine
@@ -668,9 +669,9 @@ The full remediation flow is:
 2) Add poweredOffForRemediation annotation to the unhealthy Machine
 3) Delete the node
 4) Power on the host
-5) Wait for the node the come up
-6) Remove poweredOffForRemediation annotation and the annotation added by MAO to signal the machine is unhealthy
- */
+5) Wait for the node the come up (by waiting for the node to be registered in the cluster)
+6) Remove poweredOffForRemediation annotation and the MAO's machine unhealthy annotation
+*/
 func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Machine, baremetalhost *bmh.BareMetalHost) error {
 	if len(machine.Annotations) == 0 {
 		return nil
@@ -705,20 +706,20 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1.Mac
 		}
 	}
 
-	if node != nil && !baremetalhost.Status.PoweredOn {
-		log.Printf("Deleting Node %s associated with Machine %s", node.Name, machine.Name)
-		/*
-		Delete the node only after the host is powered off. Otherwise, if we would delete the node
-		when the host is powered on, the scheduler would assign the workload to other nodes, with the
-		possibility that two instances of the same application are running in parallel. This might result
-		in corruption or other issues for applications with singleton requirement. After the host is powered
-		off we know for sure that it is safe to re-assign that workload to other nodes.
-		 */
-		return a.deleteNode(ctx, node)
-	}
-
-	// node is deleted, we can power on the host
 	if !baremetalhost.Status.PoweredOn {
+		if node != nil {
+			log.Printf("Deleting Node %s associated with Machine %s", node.Name, machine.Name)
+			/*
+				Delete the node only after the host is powered off. Otherwise, if we would delete the node
+				when the host is powered on, the scheduler would assign the workload to other nodes, with the
+				possibility that two instances of the same application are running in parallel. This might result
+				in corruption or other issues for applications with singleton requirement. After the host is powered
+				off we know for sure that it is safe to re-assign that workload to other nodes.
+			*/
+			return a.deleteNode(ctx, node)
+		}
+
+		// node is deleted, we can power on the host
 		log.Printf("Requesting Host %s power on for Machine %s",
 			baremetalhost.Name, machine.Name)
 		return a.requestPowerOn(ctx, baremetalhost)
