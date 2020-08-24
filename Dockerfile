@@ -1,9 +1,9 @@
-FROM registry.svc.ci.openshift.org/openshift/release:golang-1.13 AS builder
+FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-openshift-4.6 AS builder
 WORKDIR /go/src/github.com/openshift/cluster-api-provider-baremetal
 COPY . .
 RUN go build --mod=vendor -o machine-controller-manager ./cmd/manager
 
-FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
+FROM registry.svc.ci.openshift.org/ocp/4.6:base
 #RUN INSTALL_PKGS=" \
 #      libvirt-libs openssh-clients genisoimage \
 #      " && \
