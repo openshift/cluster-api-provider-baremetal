@@ -741,8 +741,8 @@ github.com/openshift/machine-api-operator v0.2.1-0.20200527204437-14e5e0c7d862/g
 github.com/openshift/machine-api-operator v0.2.1-0.20200611014855-9a69f85c32dd/go.mod h1:6vMi+R3xqznBdq5rgeal9N3ak3sOpy50t0fdRCcQXjE=
 github.com/openshift/machine-api-operator v0.2.1-0.20200701225707-950912b03628/go.mod h1:cxjy/RUzv5C2T5FNl1KKXUgtakWsezWQ642B/CD9VQA=
 github.com/openshift/machine-api-operator v0.2.1-0.20200722104429-f4f9b84df9b7/go.mod h1:XDsNRAVEJtkI00e51SAZ/PnqNJl1zv0rHXSdl9L1oOY=
-github.com/openshift/machine-api-operator v0.2.1-0.20200922150054-e0db6b65ba71 h1:w50MvkvZPOx30R3wMvSPRRJsPipxM82Ny9mY67DnpDk=
-github.com/openshift/machine-api-operator v0.2.1-0.20200922150054-e0db6b65ba71/go.mod h1:SA92GU0BSLwmjwD9rL2OTXiRmcSMhgYPw5RXH4OuM4U=
+github.com/openshift/machine-api-operator v0.2.1-0.20200926044412-b7d860f8074c h1:mjdL135+tVttQZ7OusXzV+HlAFAojZCE8oR1KpLci1I=
+github.com/openshift/machine-api-operator v0.2.1-0.20200926044412-b7d860f8074c/go.mod h1:cp/wPVzxHZeLUjOLkNPNqrk4wyyW6HuHd3Kz9+hl5xw=
 github.com/openshift/origin v0.0.0-20160503220234-8f127d736703/go.mod h1:0Rox5r9C8aQn6j1oAOQ0c1uC86mYbUFObzjBRvUKHII=
 github.com/openshift/prom-label-proxy v0.1.1-0.20191016113035-b8153a7f39f1/go.mod h1:p5MuxzsYP1JPsNGwtjtcgRHHlGziCJJfztff91nNixw=
 github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9/go.mod h1:PLldrQSroqzH70Xl+1DQcGnefIbqsKR7UDaiux3zV+w=

@@ -6,7 +6,7 @@ require (
 	github.com/go-logr/zapr v0.2.0 // indirect
 	github.com/metal3-io/baremetal-operator v0.0.0-00010101000000-000000000000
 	github.com/onsi/gomega v1.10.1
-	github.com/openshift/machine-api-operator v0.2.1-0.20200922150054-e0db6b65ba71
+	github.com/openshift/machine-api-operator v0.2.1-0.20200926044412-b7d860f8074c
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.5.1
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381
