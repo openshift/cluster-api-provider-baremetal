@@ -56,7 +56,7 @@ github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
 # github.com/google/btree v1.0.0
 github.com/google/btree
-# github.com/google/go-cmp v0.4.0
+# github.com/google/go-cmp v0.5.2
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
@@ -82,8 +82,6 @@ github.com/imdario/mergo
 github.com/inconshreveable/mousetrap
 # github.com/json-iterator/go v1.1.10
 github.com/json-iterator/go
-# github.com/konsorten/go-windows-terminal-sequences v1.0.3
-github.com/konsorten/go-windows-terminal-sequences
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 github.com/liggitt/tabwriter
 # github.com/mailru/easyjson v0.7.0
@@ -102,7 +100,7 @@ github.com/metal3-io/baremetal-operator/pkg/apis/metal3/v1alpha1
 github.com/metal3-io/baremetal-operator/pkg/utils
 # github.com/mitchellh/go-wordwrap v1.0.0
 github.com/mitchellh/go-wordwrap
-# github.com/moby/term v0.0.0-20200312100748-672ec06f55cd
+# github.com/moby/term v0.0.0-20200915141129-7f0af18e79f2
 github.com/moby/term
 github.com/moby/term/windows
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
@@ -124,20 +122,27 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20200901182017-7ac89ba6b971
+# github.com/openshift/api v0.0.0-20201019163320-c6a5ec25f267
 github.com/openshift/api/config/v1
-# github.com/openshift/client-go v0.0.0-20200827190008-3062137373b5
+# github.com/openshift/client-go v0.0.0-20201020074620-f8fd44879f7c
 github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/clientset/versioned/scheme
 github.com/openshift/client-go/config/clientset/versioned/typed/config/v1
-# github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20201002065957-9854f7420570
+# github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20201027164920-70f2f92e64ab
 github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1
-# github.com/openshift/machine-api-operator v0.2.1-0.20201002104344-6abfb5440597
+# github.com/openshift/machine-api-operator v0.2.1-0.20201127162808-71aeab4ff840
 github.com/openshift/machine-api-operator
 github.com/openshift/machine-api-operator/pkg/apis/machine
 github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1
 github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1
 github.com/openshift/machine-api-operator/pkg/controller/machine
+github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned
+github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/scheme
+github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/machine/v1beta1
+github.com/openshift/machine-api-operator/pkg/generated/informers/externalversions/internalinterfaces
+github.com/openshift/machine-api-operator/pkg/generated/informers/externalversions/machine/v1beta1
+github.com/openshift/machine-api-operator/pkg/generated/listers/machine/v1beta1
+github.com/openshift/machine-api-operator/pkg/metrics
 github.com/openshift/machine-api-operator/pkg/util
 # github.com/peterbourgon/diskv v2.0.1+incompatible
 github.com/peterbourgon/diskv
@@ -161,8 +166,6 @@ github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
 # github.com/russross/blackfriday v1.5.2
 github.com/russross/blackfriday
-# github.com/sirupsen/logrus v1.6.0
-github.com/sirupsen/logrus
 # github.com/spf13/cobra v1.0.0
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
@@ -185,7 +188,7 @@ golang.org/x/crypto/ssh/terminal
 # golang.org/x/mod v0.3.0
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.0.0-20200707034311-ab3426394381
+# golang.org/x/net v0.0.0-20200822124328-c89045814202
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/html
@@ -195,10 +198,10 @@ golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
-# golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+# golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sys v0.0.0-20200622214017-ed371f2e16b4
+# golang.org/x/sys v0.0.0-20201018230417-eeed37f84f13
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
@@ -226,7 +229,7 @@ golang.org/x/text/unicode/norm
 golang.org/x/text/width
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20200616133436-c1934b75d054
+# golang.org/x/tools v0.0.0-20201020123448-f5c826d1900e
 golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/gcimporter
@@ -243,12 +246,12 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/packagesinternal
 golang.org/x/tools/internal/typesinternal
-# golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
+# golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
 # gomodules.xyz/jsonpatch/v2 v2.0.1
 gomodules.xyz/jsonpatch/v2
-# google.golang.org/appengine v1.6.5
+# google.golang.org/appengine v1.6.6
 google.golang.org/appengine/internal
 google.golang.org/appengine/internal/base
 google.golang.org/appengine/internal/datastore
@@ -256,7 +259,7 @@ google.golang.org/appengine/internal/log
 google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
-# google.golang.org/protobuf v1.24.0
+# google.golang.org/protobuf v1.25.0
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
 google.golang.org/protobuf/internal/descfmt
@@ -267,12 +270,11 @@ google.golang.org/protobuf/internal/encoding/messageset
 google.golang.org/protobuf/internal/encoding/tag
 google.golang.org/protobuf/internal/encoding/text
 google.golang.org/protobuf/internal/errors
-google.golang.org/protobuf/internal/fieldnum
 google.golang.org/protobuf/internal/fieldsort
 google.golang.org/protobuf/internal/filedesc
 google.golang.org/protobuf/internal/filetype
 google.golang.org/protobuf/internal/flags
-google.golang.org/protobuf/internal/genname
+google.golang.org/protobuf/internal/genid
 google.golang.org/protobuf/internal/impl
 google.golang.org/protobuf/internal/mapsort
 google.golang.org/protobuf/internal/pragma
@@ -293,7 +295,7 @@ gopkg.in/inf.v0
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20190905181640-827449938966
 gopkg.in/yaml.v3
-# k8s.io/api v0.19.0
+# k8s.io/api v0.19.2
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
 k8s.io/api/admissionregistration/v1
@@ -338,7 +340,7 @@ k8s.io/api/settings/v1alpha1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apiextensions-apiserver v0.19.0
+# k8s.io/apiextensions-apiserver v0.19.2
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
@@ -346,7 +348,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
-# k8s.io/apimachinery v0.19.0
+# k8s.io/apimachinery v0.19.2
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
@@ -502,7 +504,7 @@ k8s.io/client-go/util/homedir
 k8s.io/client-go/util/jsonpath
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/workqueue
-# k8s.io/code-generator v0.19.0
+# k8s.io/code-generator v0.19.2
 k8s.io/code-generator/cmd/client-gen
 k8s.io/code-generator/cmd/client-gen/args
 k8s.io/code-generator/cmd/client-gen/generators
@@ -534,7 +536,7 @@ k8s.io/code-generator/cmd/set-gen
 k8s.io/code-generator/pkg/namer
 k8s.io/code-generator/pkg/util
 k8s.io/code-generator/third_party/forked/golang/reflect
-# k8s.io/component-base v0.19.0
+# k8s.io/component-base v0.19.2
 k8s.io/component-base/version
 # k8s.io/gengo v0.0.0-20200428234225-8167cfdcfc14
 k8s.io/gengo/args
