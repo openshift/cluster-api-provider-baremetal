@@ -25,11 +25,6 @@ import (
 	"strings"
 	"time"
 
-	bmh "github.com/metal3-io/baremetal-operator/pkg/apis/metal3/v1alpha1"
-	"github.com/metal3-io/baremetal-operator/pkg/utils"
-	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
-	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	machineapierrors "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	gherrors "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -39,8 +34,15 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	bmh "github.com/metal3-io/baremetal-operator/pkg/apis/metal3/v1alpha1"
+	"github.com/metal3-io/baremetal-operator/pkg/utils"
+	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
+	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machineapierrors "github.com/openshift/machine-api-operator/pkg/controller/machine"
 )
 
 const (
@@ -555,6 +557,12 @@ func (a *Actuator) provisionHost(ctx context.Context, host *bmh.BareMetalHost,
 			URL:      config.Image.URL,
 			Checksum: config.Image.Checksum,
 		}
+		// Fetch full ignition and update the UserData secret
+		err := a.updateUserData(ctx, config, machine)
+		if err != nil {
+			log.Printf("Could not update userData secret reference: %s", err)
+			return err
+		}
 		host.Spec.UserData = config.UserData
 
 		// If UserData does not include a Namespace, default to the Machine's
@@ -580,6 +588,73 @@ func (a *Actuator) provisionHost(ctx context.Context, host *bmh.BareMetalHost,
 		return gherrors.Wrap(err, "failed to provision host")
 	}
 	return nil
+}
+
+// updateUserData fetches full ignition from MCS and updates the UserData secret reference
+func (a *Actuator) updateUserData(ctx context.Context, bmconfig *bmv1alpha1.BareMetalMachineProviderSpec,
+	machine *machinev1beta1.Machine) error {
+
+	// Try to fetch the full ignition secret to see if it exists
+	machineUserDataSecret := &corev1.Secret{}
+	key := client.ObjectKey{
+		Name:      machine.Name + "-user-data",
+		Namespace: machine.Namespace,
+	}
+	// Check if the full ignition secret already exists. If not, create one
+	err := a.client.Get(ctx, key, machineUserDataSecret)
+	if err == nil {
+		return nil
+	}
+	if !errors.IsNotFound(err) {
+		return fmt.Errorf("Cannot get %s secret: %w", machineUserDataSecret.Name, err)
+	}
+
+	var data []byte
+	if data, err = a.GetConfig(machine.Labels[machineRoleLabel]); err != nil {
+		return fmt.Errorf("cannot get marshal the updated ignition config: %w", err)
+	}
+
+	// Create a new secret with ignition data
+	machineUserDataSecret = createNewMachineSecret(data, machine)
+	err = a.client.Create(ctx, machineUserDataSecret)
+	if err != nil {
+		return fmt.Errorf("cannot create the %s secret: %w", machineUserDataSecret.Name, err)
+	}
+	// Set Machine's secretreference to the newly created secret
+	bmconfig.UserData = &corev1.SecretReference{
+		Name:      machine.Name + "-user-data",
+		Namespace: machine.Namespace,
+	}
+
+	return nil
+}
+
+// createNewSecret uses Full Ignition data and creates a '-user-data' suffixed secret per machine
+func createNewMachineSecret(data []byte, machine *machinev1beta1.Machine) *corev1.Secret {
+	// Create a new Secret with Full Ignition
+	return &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      machine.Name + "-user-data",
+			Namespace: machine.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				metav1.OwnerReference{
+					Controller: pointer.BoolPtr(true),
+					Kind:       "Machine",
+					Name:       machine.Name,
+					APIVersion: machine.APIVersion,
+					UID:        machine.UID,
+				},
+			},
+		},
+		Data: map[string][]byte{
+			"userData": data,
+		},
+		Type: "Opaque",
+	}
 }
 
 // releaseHost removes the ConsumerRef and the actuator's finalizer from the

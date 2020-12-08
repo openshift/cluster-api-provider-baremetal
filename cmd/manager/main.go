@@ -22,6 +22,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
+
 	bmoapis "github.com/metal3-io/baremetal-operator/pkg/apis"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/apis"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/cloud/baremetal/actuators/machine"
@@ -29,15 +39,7 @@ import (
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/manager/wrapper"
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	maomachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
+	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 )
 
 // The default durations for the leader election operations.
@@ -48,8 +50,6 @@ var (
 )
 
 func main() {
-	klog.InitFlags(nil)
-
 	watchNamespace := flag.String(
 		"namespace",
 		"",
@@ -117,7 +117,7 @@ func main() {
 	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
-		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
+		glog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
 	}
 
 	mgr, err := manager.New(cfg, opts)
@@ -145,6 +145,10 @@ func main() {
 		panic(err)
 	}
 
+	if err := mcfgv1.AddToScheme(mgr.GetScheme()); err != nil {
+		panic(err)
+	}
+
 	// the manager wrapper will add an extra Watch to the controller
 	maomachine.AddWithActuator(wrapper.New(mgr), machineActuator)
 
@@ -154,11 +158,11 @@ func main() {
 	}
 
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 
 	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {

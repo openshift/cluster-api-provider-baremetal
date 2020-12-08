@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
@@ -13,6 +14,10 @@ import (
 	"github.com/metal3-io/baremetal-operator/pkg/utils"
 	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+        mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
+        ctrlcommon "github.com/openshift/machine-config-operator/pkg/controller/common"
+        "github.com/openshift/machine-config-operator/test/helpers"
+
 	machineapierrors "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -559,11 +564,64 @@ func TestProvisionHost(t *testing.T) {
 					ProviderSpec: providerSpec,
 				},
 			}
+			machine.Labels = map[string]string{
+					machineRoleLabel: "worker",
+				}
+
+                        mc := &mcfgv1.MachineConfig{
+                                ObjectMeta: metav1.ObjectMeta{
+                                        Name: "rendered-worker-1234567890",
+                                },
+                                Spec: mcfgv1.MachineConfigSpec{
+                                        Config: runtime.RawExtension{
+                                                Raw: helpers.MarshalOrDie(ctrlcommon.NewIgnConfig()),
+                                        },
+                                },
+                        }
+                        mcp := &mcfgv1.MachineConfigPool{
+                                ObjectMeta: metav1.ObjectMeta{
+                                        Name: "worker",
+                                },
+                                Spec: mcfgv1.MachineConfigPoolSpec{
+                                        Configuration: mcfgv1.MachineConfigPoolStatusConfiguration{
+                                                ObjectReference: corev1.ObjectReference{
+                                                        Name: "rendered-worker-1234567890",
+                                                },
+                                        },
+                                },
+                                Status: mcfgv1.MachineConfigPoolStatus{
+                                        Configuration: mcfgv1.MachineConfigPoolStatusConfiguration{
+                                                ObjectReference: corev1.ObjectReference{
+                                                        Name: "rendered-worker-1234567890",
+                                                },
+                                        },
+                                },
+                        }
+
+                        data := make(map[string][]byte)
+                        data["kubeconfig"] = []byte(base64.StdEncoding.EncodeToString([]byte("Hello Kubelet")))
+                        secret := &corev1.Secret{
+                                ObjectMeta: metav1.ObjectMeta{
+                                        Name:      "kubeconfig-kubelet-secret",
+                                        Namespace: "openshift-machine-api",
+                                },
+                                Data: data,
+                        }
 
 			// test setup
 			scheme := runtime.NewScheme()
 			bmoapis.AddToScheme(scheme)
+			corev1.AddToScheme(scheme)
+                        mcfgv1.AddToScheme(scheme)
+
 			c := fakeclient.NewFakeClientWithScheme(scheme, &tc.Host)
+                        // Create objects
+                        c.Create(context.TODO(), mcp)
+                        c.Create(context.TODO(), mc)
+			c.Create(context.TODO(), secret)
+                        if &tc.Host != nil {
+                                c.Create(context.TODO(), &tc.Host)
+                        }
 
 			actuator, err := NewActuator(ActuatorParams{
 				Client: c,
@@ -621,10 +679,7 @@ func TestProvisionHost(t *testing.T) {
 					t.Errorf("UserData not set")
 					return
 				}
-				if savedHost.Spec.UserData.Namespace != tc.ExpectedUserDataNamespace {
-					t.Errorf("expected Userdata.Namespace %s, got %s", tc.ExpectedUserDataNamespace, savedHost.Spec.UserData.Namespace)
-				}
-				if savedHost.Spec.UserData.Name != testUserDataSecretName {
+				if savedHost.Spec.UserData.Name != "machine1-user-data" {
 					t.Errorf("expected Userdata.Name %s, got %s", testUserDataSecretName, savedHost.Spec.UserData.Name)
 				}
 			} else {
