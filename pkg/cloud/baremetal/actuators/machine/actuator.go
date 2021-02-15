@@ -292,16 +292,22 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1beta1.Machine) 
 		return false, a.clearMachineAddresses(ctx, machine)
 	}
 
+	// FIXME(rdo): This is a temporary workaround to handle states that were removed by
+	// metal3-io/baremetal-operator/pull/388. If a 4.6 cluster is upgraded with nodes
+	// in a state that isn't handled by the BMO, we may experience unexpected behaviour.
+	var stateCheck interface{} = host.Status.Provisioning.State
+	if stateCheckStr, ok := stateCheck.(string); ok {
+		if stateCheckStr == "registration error" || stateCheckStr == "power management error" {
+			log.Printf("Machine %v exists but Host is not manageable (deprecated state).", machine.Name)
+			return true, nil
+		}
+	}
+
 	switch host.Status.Provisioning.State {
 	case bmh.StateProvisioned, bmh.StateExternallyProvisioned, bmh.StateUnmanaged:
 		log.Printf("Machine %v exists.", machine.Name)
 		return true, nil
 	case bmh.StateRegistering:
-		// This case will no longer need to be handled once the changes proposed
-		// in https://github.com/metal3-io/baremetal-operator/pull/388 are
-		// available in the baremetal-operator.
-		// (rdo) These were removed with metal3-io/baremetal-operator/pull/388
-		// But I am leaving StateRegistering as it tests successfully.
 		log.Printf("Machine %v exists but Host is not manageable.", machine.Name)
 		return true, nil
 	default:
@@ -912,9 +918,14 @@ func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareM
 		return &machineapierrors.RequeueAfterError{RequeueAfter: time.Second * 5}
 	}
 
-	baremetalhost.Annotations[requestPowerOffAnnotation] = ""
+	// Issue a hard reboot for immediate remediation purposes
+	remediationRebootAnnotation := bmh.RebootAnnotationArguments{Mode: bmh.RebootModeHard}
+	remediationString, err := json.Marshal(remediationRebootAnnotation)
+	if err == nil {
+		baremetalhost.Annotations[requestPowerOffAnnotation] = string(remediationString[:])
+	}
 
-	err := a.client.Update(ctx, baremetalhost)
+	err = a.client.Update(ctx, baremetalhost)
 	if err != nil {
 		log.Printf("failed to add power off request annotation to %s: %s", baremetalhost.Name, err.Error())
 	}
