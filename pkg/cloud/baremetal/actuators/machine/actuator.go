@@ -489,9 +489,9 @@ func (a *Actuator) chooseHost(ctx context.Context, machine *machinev1beta1.Machi
 			// the host has some sort of error
 			continue
 		}
-		if host.Spec.ExternallyProvisioned {
-			// the host was provisioned by something else, we should
-			// not overwrite it
+		if host.Spec.ExternallyProvisioned && host.Spec.Image == nil {
+			// The host should only be provisioned by something else, we should
+			// not overwrite it. But we can associate the new machine to it.
 			continue
 		}
 
