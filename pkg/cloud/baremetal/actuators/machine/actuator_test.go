@@ -8,8 +8,8 @@ import (
 
 	"reflect"
 
-	bmoapis "github.com/metal3-io/baremetal-operator/pkg/apis"
-	bmh "github.com/metal3-io/baremetal-operator/pkg/apis/metal3/v1alpha1"
+	bmoapis "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
+	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/metal3-io/baremetal-operator/pkg/utils"
 	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
@@ -107,7 +107,7 @@ func TestChooseHost(t *testing.T) {
 		Status: bmh.BareMetalHostStatus{
 			ErrorMessage: "this host is discovered and not usable",
 			Provisioning: bmh.ProvisionStatus{
-				State: bmh.StateRegistrationError,
+				State: bmh.StateRegistering,
 			},
 		},
 	}
@@ -2296,7 +2296,7 @@ func getBareMetalHost(name string) (*bmh.BareMetalHost, types.NamespacedName) {
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "BareMetalHost",
-			APIVersion: bmh.SchemeGroupVersion.String(),
+			APIVersion: bmh.GroupVersion.String(),
 		},
 		Spec:   bmh.BareMetalHostSpec{},
 		Status: bmh.BareMetalHostStatus{},

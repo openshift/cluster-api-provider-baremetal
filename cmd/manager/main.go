@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 
-	bmoapis "github.com/metal3-io/baremetal-operator/pkg/apis"
+	bmoapis "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/apis"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/cloud/baremetal/actuators/machine"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller"

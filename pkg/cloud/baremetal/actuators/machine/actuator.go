@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	bmh "github.com/metal3-io/baremetal-operator/pkg/apis/metal3/v1alpha1"
+	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/metal3-io/baremetal-operator/pkg/utils"
 	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
@@ -296,10 +296,12 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1beta1.Machine) 
 	case bmh.StateProvisioned, bmh.StateExternallyProvisioned, bmh.StateUnmanaged:
 		log.Printf("Machine %v exists.", machine.Name)
 		return true, nil
-	case bmh.StateRegistering, bmh.StateRegistrationError, bmh.StatePowerManagementError:
+	case bmh.StateRegistering:
 		// This case will no longer need to be handled once the changes proposed
 		// in https://github.com/metal3-io/baremetal-operator/pull/388 are
 		// available in the baremetal-operator.
+		// (rdo) These were removed with metal3-io/baremetal-operator/pull/388
+		// But I am leaving StateRegistering as it tests successfully.
 		log.Printf("Machine %v exists but Host is not manageable.", machine.Name)
 		return true, nil
 	default:
