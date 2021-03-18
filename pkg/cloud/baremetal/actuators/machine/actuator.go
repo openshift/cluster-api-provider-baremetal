@@ -320,6 +320,10 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1beta1.Machine) 
 	}
 }
 
+func canUseExternallyProvisionedHost(host *bmh.BareMetalHost) bool {
+	return host.Spec.Image != nil && host.Spec.Online
+}
+
 // The Machine Actuator interface must implement GetIP and GetKubeConfig functions as a workaround for issues
 // cluster-api#158 (https://github.com/kubernetes-sigs/cluster-api/issues/158) and cluster-api#160
 // (https://github.com/kubernetes-sigs/cluster-api/issues/160).
@@ -497,7 +501,7 @@ func (a *Actuator) chooseHost(ctx context.Context, machine *machinev1beta1.Machi
 			// the host has some sort of error
 			continue
 		}
-		if host.Spec.ExternallyProvisioned {
+		if host.Spec.ExternallyProvisioned && !canUseExternallyProvisionedHost(&host) {
 			// the host was provisioned by something else, we should
 			// not overwrite it
 			continue
