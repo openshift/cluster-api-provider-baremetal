@@ -4,8 +4,8 @@ go 1.15
 
 require (
 	github.com/metal3-io/baremetal-operator v0.0.0-00010101000000-000000000000
-	github.com/onsi/gomega v1.10.2
-	github.com/openshift/machine-api-operator v0.2.1-0.20210104142355-8e6ae0acdfcf
+	github.com/onsi/gomega v1.10.2 // indirect
+	github.com/openshift/machine-api-operator v0.2.1-0.20210326200349-d395a075e887
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
