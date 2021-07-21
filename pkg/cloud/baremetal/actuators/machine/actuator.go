@@ -1099,7 +1099,25 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1beta
 	}
 
 	if _, needsRemediation := machine.Annotations[externalRemediationAnnotation]; !needsRemediation {
-		return nil
+		// It can happen that an unhealthy machine with external remediation annotation got healthy, and the external
+		// remediation annotation was removed by the MHC controller, before remediation finished or even started
+		// (e.g. the metal3 pod is not running, but machine was rebooted manually).
+		// In this case stop remediation, if possible.
+
+		// If bmh isn't requested to power off (1st step of remediation), and the machine isn't marked as powered off
+		// for remediation (removed as last step of remediation), there is no ongoing remediation
+		powerOffRequestExists := hasPowerOffRequestAnnotation(baremetalhost)
+		_, poweredOffForRemediationExists := machine.Annotations[poweredOffForRemediation]
+		if !powerOffRequestExists && !poweredOffForRemediationExists {
+			return nil
+		}
+
+		// We want to cancel a remediation, if nothing happened yet: power off was requested, but not executed yet.
+		if powerOffRequestExists && baremetalhost.Status.PoweredOn {
+			return a.requestPowerOn(ctx, machine, baremetalhost)
+		}
+
+		// In all other cases: there is an ongoing remediation, which should not be interrupted
 	}
 
 	node, err := a.getNodeByMachine(ctx, machine)
