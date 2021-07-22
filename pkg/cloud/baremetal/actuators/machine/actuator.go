@@ -950,18 +950,23 @@ func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareM
 
 //requestPowerOn removes requestPowerOffAnnotation from baremetalhost which signals BMO to power on the machine
 func (a *Actuator) requestPowerOn(ctx context.Context, machine *machinev1beta1.Machine, baremetalhost *bmh.BareMetalHost) error {
-	if machine.Annotations == nil {
-		machine.Annotations = make(map[string]string)
-	}
-	mhc := a.getMhcByMachine(machine)
-	timeout := remediationPowerOnDefaultTimeout
-	if mhc != nil && mhc.Spec.NodeStartupTimeout.Duration != 0*time.Second {
-		timeout = mhc.Spec.NodeStartupTimeout.Duration
-	}
-	machine.Annotations[powerOnWillTimeoutAtAnnotation] = time.Now().Add(timeout).Format(annotationTimestampFormat)
 
-	if err := a.client.Update(ctx, machine); err != nil {
-		return gherrors.Wrapf(err, "failed to add remediation power on timestamp annotation to %s", machine.Name)
+	// if the bmh is still powered on, no need to set the timeout annotation, just remove the power off request
+	// can happen when canceling remediation
+	if !baremetalhost.Status.PoweredOn {
+		if machine.Annotations == nil {
+			machine.Annotations = make(map[string]string)
+		}
+		mhc := a.getMhcByMachine(machine)
+		timeout := remediationPowerOnDefaultTimeout
+		if mhc != nil && mhc.Spec.NodeStartupTimeout.Duration != 0*time.Second {
+			timeout = mhc.Spec.NodeStartupTimeout.Duration
+		}
+		machine.Annotations[powerOnWillTimeoutAtAnnotation] = time.Now().Add(timeout).Format(annotationTimestampFormat)
+
+		if err := a.client.Update(ctx, machine); err != nil {
+			return gherrors.Wrapf(err, "failed to add remediation power on timestamp annotation to %s", machine.Name)
+		}
 	}
 
 	if baremetalhost.Annotations == nil {
