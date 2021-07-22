@@ -1111,7 +1111,7 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1beta
 		}
 	}
 
-	if _, poweredOffForRemediation := machine.Annotations[poweredOffForRemediation]; !poweredOffForRemediation {
+	if _, poweredOffForRemediationExists := machine.Annotations[poweredOffForRemediation]; !poweredOffForRemediationExists {
 		if !hasPowerOffRequestAnnotation(baremetalhost) {
 			log.Printf("Found an unhealthy machine, requesting power off. Machine name: %s", machine.Name)
 			return a.requestPowerOff(ctx, baremetalhost)
