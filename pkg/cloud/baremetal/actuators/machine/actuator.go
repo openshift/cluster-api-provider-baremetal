@@ -1084,12 +1084,14 @@ func (a *Actuator) getNodeByMachine(ctx context.Context, machine *machinev1beta1
 remediateIfNeeded will try to remediate unhealthy machines (annotated by MHC) by power-cycle the host
 The full remediation flow is:
 1) Power off the host
-2) Add poweredOffForRemediation annotation to the unhealthy Machine
-3) Delete the node
-4) Power on the host
-5) Wait for the node the come up (by waiting for the node to be registered in the cluster)
-6) Restore node's annotations and labels
-7) Remove poweredOffForRemediation annotation, MAO's machine unhealthy annotation and annotations/labels backup
+2) Store node's annotations and labels
+3) Delete node
+4) Add poweredOffForRemediation annotation to the unhealthy Machine
+5) Power on the host
+6) Wait for the node the come up (by waiting for the node to be registered in the cluster)
+7) If the node doesn't come up after some time, and the host can be reprovisioned, delete the machine
+8) Restore node's annotations and labels
+9) Remove all remediation related annotations from the machine
 */
 func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1beta1.Machine, baremetalhost *bmh.BareMetalHost) error {
 	if len(machine.Annotations) == 0 {
