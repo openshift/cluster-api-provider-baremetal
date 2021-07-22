@@ -950,18 +950,23 @@ func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareM
 
 //requestPowerOn removes requestPowerOffAnnotation from baremetalhost which signals BMO to power on the machine
 func (a *Actuator) requestPowerOn(ctx context.Context, machine *machinev1beta1.Machine, baremetalhost *bmh.BareMetalHost) error {
-	if machine.Annotations == nil {
-		machine.Annotations = make(map[string]string)
-	}
-	mhc := a.getMhcByMachine(machine)
-	timeout := remediationPowerOnDefaultTimeout
-	if mhc != nil && mhc.Spec.NodeStartupTimeout.Duration != 0*time.Second {
-		timeout = mhc.Spec.NodeStartupTimeout.Duration
-	}
-	machine.Annotations[powerOnWillTimeoutAtAnnotation] = time.Now().Add(timeout).Format(annotationTimestampFormat)
 
-	if err := a.client.Update(ctx, machine); err != nil {
-		return gherrors.Wrapf(err, "failed to add remediation power on timestamp annotation to %s", machine.Name)
+	// if the bmh is still powered on, no need to set the timeout annotation, just remove the power off request
+	// can happen when canceling remediation
+	if !baremetalhost.Status.PoweredOn {
+		if machine.Annotations == nil {
+			machine.Annotations = make(map[string]string)
+		}
+		mhc := a.getMhcByMachine(machine)
+		timeout := remediationPowerOnDefaultTimeout
+		if mhc != nil && mhc.Spec.NodeStartupTimeout.Duration != 0*time.Second {
+			timeout = mhc.Spec.NodeStartupTimeout.Duration
+		}
+		machine.Annotations[powerOnWillTimeoutAtAnnotation] = time.Now().Add(timeout).Format(annotationTimestampFormat)
+
+		if err := a.client.Update(ctx, machine); err != nil {
+			return gherrors.Wrapf(err, "failed to add remediation power on timestamp annotation to %s", machine.Name)
+		}
 	}
 
 	if baremetalhost.Annotations == nil {
@@ -1084,12 +1089,14 @@ func (a *Actuator) getNodeByMachine(ctx context.Context, machine *machinev1beta1
 remediateIfNeeded will try to remediate unhealthy machines (annotated by MHC) by power-cycle the host
 The full remediation flow is:
 1) Power off the host
-2) Add poweredOffForRemediation annotation to the unhealthy Machine
-3) Delete the node
-4) Power on the host
-5) Wait for the node the come up (by waiting for the node to be registered in the cluster)
-6) Restore node's annotations and labels
-7) Remove poweredOffForRemediation annotation, MAO's machine unhealthy annotation and annotations/labels backup
+2) Store node's annotations and labels
+3) Delete node
+4) Add poweredOffForRemediation annotation to the unhealthy Machine
+5) Power on the host
+6) Wait for the node the come up (by waiting for the node to be registered in the cluster)
+7) If the node doesn't come up after some time, and the host can be reprovisioned, delete the machine
+8) Restore node's annotations and labels
+9) Remove all remediation related annotations from the machine
 */
 func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1beta1.Machine, baremetalhost *bmh.BareMetalHost) error {
 	if len(machine.Annotations) == 0 {
@@ -1097,7 +1104,25 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1beta
 	}
 
 	if _, needsRemediation := machine.Annotations[externalRemediationAnnotation]; !needsRemediation {
-		return nil
+		// It can happen that an unhealthy machine with external remediation annotation got healthy, and the external
+		// remediation annotation was removed by the MHC controller, before remediation finished or even started
+		// (e.g. the metal3 pod is not running, but machine was rebooted manually).
+		// In this case stop remediation, if possible.
+
+		// If bmh isn't requested to power off (1st step of remediation), and the machine isn't marked as powered off
+		// for remediation (removed as last step of remediation), there is no ongoing remediation
+		powerOffRequestExists := hasPowerOffRequestAnnotation(baremetalhost)
+		_, poweredOffForRemediationExists := machine.Annotations[poweredOffForRemediation]
+		if !powerOffRequestExists && !poweredOffForRemediationExists {
+			return nil
+		}
+
+		// We want to cancel a remediation, if nothing happened yet: power off was requested, but not executed yet.
+		if powerOffRequestExists && baremetalhost.Status.PoweredOn {
+			return a.requestPowerOn(ctx, machine, baremetalhost)
+		}
+
+		// In all other cases: there is an ongoing remediation, which should not be interrupted
 	}
 
 	node, err := a.getNodeByMachine(ctx, machine)
@@ -1109,7 +1134,7 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1beta
 		}
 	}
 
-	if _, poweredOffForRemediation := machine.Annotations[poweredOffForRemediation]; !poweredOffForRemediation {
+	if _, poweredOffForRemediationExists := machine.Annotations[poweredOffForRemediation]; !poweredOffForRemediationExists {
 		if !hasPowerOffRequestAnnotation(baremetalhost) {
 			log.Printf("Found an unhealthy machine, requesting power off. Machine name: %s", machine.Name)
 			return a.requestPowerOff(ctx, baremetalhost)
