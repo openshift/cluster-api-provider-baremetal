@@ -1119,7 +1119,12 @@ func (a *Actuator) remediateIfNeeded(ctx context.Context, machine *machinev1beta
 
 		// We want to cancel a remediation, if nothing happened yet: power off was requested, but not executed yet.
 		if powerOffRequestExists && baremetalhost.Status.PoweredOn {
-			return a.requestPowerOn(ctx, machine, baremetalhost)
+			err := a.requestPowerOn(ctx, machine, baremetalhost)
+			// no need to requeue
+			if _, ok := err.(*machineapierrors.RequeueAfterError); ok {
+				return nil
+			}
+			return err
 		}
 
 		// In all other cases: there is an ongoing remediation, which should not be interrupted
