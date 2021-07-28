@@ -2132,6 +2132,162 @@ func TestRemediation(t *testing.T) {
 	}
 }
 
+func TestCancelRemediation(t *testing.T) {
+	machine, machineNamespacedName := getMachine("machine1")
+	host, hostNamespacedName := getBareMetalHost("host1")
+	node, _ := getNode("node1")
+	nodeAnnotations := map[string]string{"annName1": "annValue1", "annName2": "annValue2"}
+	nodeLabels := map[string]string{"labelName1": "labelValue1", "labelName2": "labelValue2"}
+
+	node.Annotations = nodeAnnotations
+	node.Labels = nodeLabels
+	linkMachineAndNode(machine, node)
+	host.Status.PoweredOn = true
+
+	//starting test with machine that needs remediation
+	machine.Annotations = make(map[string]string)
+	machine.Annotations[HostAnnotation] = host.Namespace + "/" + host.Name
+
+	scheme := runtime.NewScheme()
+	machinev1beta1.AddToScheme(scheme)
+	bmoapis.AddToScheme(scheme)
+	corev1.AddToScheme(scheme)
+
+	c := fakeclient.NewFakeClientWithScheme(scheme)
+
+	actuator, err := NewActuator(ActuatorParams{
+		Client: c,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	c.Create(context.TODO(), machine)
+	c.Create(context.TODO(), host)
+	c.Create(context.TODO(), node)
+
+	err = updateUntilDone(actuator, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	machine = &machinev1beta1.Machine{}
+	c.Get(context.TODO(), machineNamespacedName, machine)
+	machine.Annotations[externalRemediationAnnotation] = ""
+	c.Update(context.TODO(), machine)
+	machine = &machinev1beta1.Machine{}
+	c.Get(context.TODO(), machineNamespacedName, machine)
+
+	err = actuator.Update(context.TODO(), machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	host = &bmh.BareMetalHost{}
+	c.Get(context.TODO(), hostNamespacedName, host)
+	if !hasPowerOffRequestAnnotation(host) {
+		t.Log("Expected reboot annotation on the host but none found")
+		t.Fail()
+	}
+
+	// external remediation is stopped
+	delete(machine.Annotations, externalRemediationAnnotation)
+	c.Update(context.TODO(), machine)
+	machine = &machinev1beta1.Machine{}
+	c.Get(context.TODO(), machineNamespacedName, machine)
+
+	err = actuator.Update(context.TODO(), machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	host = &bmh.BareMetalHost{}
+	c.Get(context.TODO(), hostNamespacedName, host)
+	if hasPowerOffRequestAnnotation(host) {
+		t.Log("Expected reboot annotation on the host to be deleted but it still exists")
+		t.Fail()
+	}
+}
+
+func TestCancelRemediationTooLate(t *testing.T) {
+	machine, machineNamespacedName := getMachine("machine1")
+	host, hostNamespacedName := getBareMetalHost("host1")
+	node, _ := getNode("node1")
+	nodeAnnotations := map[string]string{"annName1": "annValue1", "annName2": "annValue2"}
+	nodeLabels := map[string]string{"labelName1": "labelValue1", "labelName2": "labelValue2"}
+
+	node.Annotations = nodeAnnotations
+	node.Labels = nodeLabels
+	linkMachineAndNode(machine, node)
+	host.Status.PoweredOn = true
+
+	//starting test with machine that needs remediation
+	machine.Annotations = make(map[string]string)
+	machine.Annotations[HostAnnotation] = host.Namespace + "/" + host.Name
+
+	scheme := runtime.NewScheme()
+	machinev1beta1.AddToScheme(scheme)
+	bmoapis.AddToScheme(scheme)
+	corev1.AddToScheme(scheme)
+
+	c := fakeclient.NewFakeClientWithScheme(scheme)
+
+	actuator, err := NewActuator(ActuatorParams{
+		Client: c,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	c.Create(context.TODO(), machine)
+	c.Create(context.TODO(), host)
+	c.Create(context.TODO(), node)
+
+	err = updateUntilDone(actuator, machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	machine = &machinev1beta1.Machine{}
+	c.Get(context.TODO(), machineNamespacedName, machine)
+	machine.Annotations[externalRemediationAnnotation] = ""
+	c.Update(context.TODO(), machine)
+	machine = &machinev1beta1.Machine{}
+	c.Get(context.TODO(), machineNamespacedName, machine)
+
+	err = actuator.Update(context.TODO(), machine)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	host = &bmh.BareMetalHost{}
+	c.Get(context.TODO(), hostNamespacedName, host)
+	if !hasPowerOffRequestAnnotation(host) {
+		t.Log("Expected reboot annotation on the host but none found")
+		t.Fail()
+	}
+
+	// external remediation is stopped
+	delete(machine.Annotations, externalRemediationAnnotation)
+	c.Update(context.TODO(), machine)
+	machine = &machinev1beta1.Machine{}
+	c.Get(context.TODO(), machineNamespacedName, machine)
+
+	// but host is already powered off
+	host.Status.PoweredOn = false
+	c.Update(context.TODO(), host)
+
+	err = actuator.Update(context.TODO(), machine)
+	expectRequeueAfterError(err, t)
+
+	host = &bmh.BareMetalHost{}
+	c.Get(context.TODO(), hostNamespacedName, host)
+	if !hasPowerOffRequestAnnotation(host) {
+		t.Log("Expected reboot annotation on the host to to still exist")
+		t.Fail()
+	}
+}
+
 func TestIsPowerOnTimedOut(t *testing.T) {
 	machine, _ := getMachine("machine1")
 	// no annotations
