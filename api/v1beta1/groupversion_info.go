@@ -18,7 +18,7 @@ limitations under the License.
 // +kubebuilder:object:generate=true
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=package,register
-// +k8s:conversion-gen=github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal
+// +k8s:conversion-gen=github.com/metal3-io/cluster-api-provider-metal3/pkg/apis/baremetal
 // +k8s:defaulter-gen=TypeMeta
 // +groupName=infrastructure.cluster.x-k8s.io
 package v1beta1

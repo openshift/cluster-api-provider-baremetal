@@ -17,7 +17,7 @@ limitations under the License.
 // Package v1alpha5 contains API Schema definitions for the metal3 v1alpha5 API group
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=package,register
-// +k8s:conversion-gen=github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal
+// +k8s:conversion-gen=github.com/metal3-io/cluster-api-provider-metal3/pkg/apis/baremetal
 // +k8s:defaulter-gen=TypeMeta
 // +k8s:conversion-gen=github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1
 // +kubebuilder:object:generate=true

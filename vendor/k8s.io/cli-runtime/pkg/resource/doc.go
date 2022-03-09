@@ -1,8 +1,6 @@
 /*
 Copyright 2014 The Kubernetes Authors.
 
-fail
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -16,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-<<<<<<< HEAD:vendor/k8s.io/cli-runtime/pkg/resource/doc.go
 // Package resource assists clients in dealing with RESTful objects that match the
 // Kubernetes API conventions. The Helper object provides simple CRUD operations
 // on resources. The Visitor interface makes it easy to deal with multiple resources
@@ -25,6 +22,3 @@ limitations under the License.
 // over all of the identified resources, whether on the server or on the local
 // filesystem.
 package resource // import "k8s.io/cli-runtime/pkg/resource"
-=======
-package test
->>>>>>> upstream/main:hack/boilerplate/test/fail.go

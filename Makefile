@@ -19,7 +19,7 @@ GOPATH=$(shell go env GOPATH)
 .PHONY: build
 build:
 	@mkdir -p bin
-	go build --mod=vendor -o bin/machine-controller-manager ./cmd/manager
+	go build -mod=vendor -o bin/machine-controller-manager ./cmd/manager
 
 # If you update this file, please follow
 # https://suva.sh/posts/well-documented-makefiles

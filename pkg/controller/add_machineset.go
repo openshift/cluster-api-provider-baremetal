@@ -17,7 +17,7 @@ limitations under the License.
 package controller
 
 import (
-	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller/machineset"
+	"github.com/metal3-io/cluster-api-provider-metal3/pkg/controller/machineset"
 )
 
 func init() {

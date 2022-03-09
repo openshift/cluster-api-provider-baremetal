@@ -11,7 +11,7 @@ import (
 	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	bmoapis "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/metal3-io/baremetal-operator/pkg/utils"
-	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
+	bmv1alpha1 "github.com/metal3-io/cluster-api-provider-metal3/pkg/apis/baremetal/v1alpha1"
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machineapierrors "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/stretchr/testify/assert"
