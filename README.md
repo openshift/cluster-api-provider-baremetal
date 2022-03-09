@@ -1,59 +1,128 @@
-# Cluster API Provider for Managed Bare Metal Hardware
+# Cluster API Provider Metal3 for Managed Bare Metal Hardware
 
-This repository contains a Machine actuator implementation for the
-Kubernetes [Cluster API](https://github.com/kubernetes-sigs/cluster-api/).
+[![Ubuntu V1beta1 build status](https://jenkins.nordix.org/view/Metal3/job/metal3_main_v1b1_integration_test_ubuntu/badge/icon?subject=Ubuntu%20E2E%20V1beta1)](https://jenkins.nordix.org/view/Metal3/job/metal3_main_v1b1_integration_test_ubuntu/)
+[![CentOS V1beta1 build status](https://jenkins.nordix.org/view/Metal3/job/metal3_main_v1b1_integration_test_centos/badge/icon?subject=CentOS%20E2E%20V1beta1)](https://jenkins.nordix.org/view/Metal3/job/metal3_main_v1b1_integration_test_centos/)
 
-For more information about this actuator and related repositories, see
-[metal3.io](http://metal3.io/).
+Kubernetes-native declarative infrastructure for Metal3.
+
+## What is the Cluster API Provider Metal3
+
+The [Cluster API](https://github.com/kubernetes-sigs/cluster-api/) brings declarative,
+Kubernetes-style APIs to cluster creation, configuration and management. The API
+itself is shared across multiple cloud providers. Cluster API Provider Metal3 is
+one of the providers for Cluster API and enables users to deploy a Cluster API based
+cluster on top of bare metal infrastructure using Metal3.
+
+## Compatibility with Cluster API
+
+| CAPM3 version | Cluster API version | CAPM3 Release |
+|---------------|---------------------|---------------|
+| ~~v1alpha4~~  | ~~v1alpha3~~        | ~~v0.4.X~~    |
+| v1alpha5      | v1alpha4            | v0.5.X        |
+| v1beta1       | v1beta1             | v1.1.X        |
+
+**Note:** We have stopped supporting CAPM3 v1alpha4 API version.
+
+## Deploying the metal3 provider
+
+The recommended method is using
+[Clusterctl](https://main.cluster-api.sigs.k8s.io/clusterctl/overview.html).
+
+Starting from `v0.5.0` release of Cluster API Provider Metal3, Baremetal Operator is decoupled
+from Cluster API Provider Metal3 deployments when deployed via `clusterctl`. For this reason,
+Baremetal Operator will not be installed when initializing the Metal3 provider with clusterctl,
+and its CRDs and controller need to be manually installed. Example flow of installing Metal3
+provider:
+
+1. Install Cluster API core, bootstrap and control-plane providers. This will also install
+  cert-manager if it is not already installed. To have more verbose logs you can use the -v flag
+  when running the clusterctl and set the level of the logging verbose with a positive integer number, ie. -v5.
+
+    ```shell
+    clusterctl init --core cluster-api:v1.1.3 --bootstrap kubeadm:v1.1.3 \
+        --control-plane kubeadm:v1.1.3 -v5
+    ```
+
+1. Install Metal3 provider. This will install the latest version of Cluster API Provider Metal3 CRDs and controllers.
+
+    ```shell
+    clusterctl init --infrastructure metal3
+    ```
+
+    You can also specify the provider version by appending a version tag to the provider name as follows:
+
+    ```shell
+    clusterctl init --infrastructure metal3:v1.1.0
+    ```
+
+1. Deploy Baremetal Operator manifests and CRDs. You need to install cert-manager for Baremetal Operator,
+  but since step 1 already does it, we can skip it and only install the operator. Depending on
+  whether you want TLS, or basic-auth enabled, kustomize paths may differ. Check operator [dev-setup doc](https://github.com/metal3-io/baremetal-operator/blob/main/docs/dev-setup.md)
+  for more info.
+
+    ```shell
+    git clone https://github.com/metal3-io/baremetal-operator.git
+    kubectl create namespace baremetal-operator-system
+    cd baremetal-operator
+    kustomize build config/default | kubectl apply -f -
+    ```
+
+1. Install Ironic. There are a couple of ways to do it.
+    - Run within a Kubernetes cluster as a pod, refer to the [deploy.sh](https://github.com/metal3-io/baremetal-operator/blob/main/tools/deploy.sh)
+      script.
+    - Outside of a Kubernetes cluster as a container. Please refer to the [run_local_ironic.sh](https://github.com/metal3-io/baremetal-operator/blob/main/tools/run_local_ironic.sh) script.
+
+Please refer to the [getting-started](docs/getting-started.md) for more info.
+
+## Pivoting ⚠️
+
+Starting from `v0.5.0` release of Cluster API Provider Metal3, Baremetal Operator is decoupled
+from Cluster API Provider Metal3 deployments when deployed via `clusterctl`. For that reason,
+when performing `clusterctl move`, custom objects outside of the Cluster API chain or not part
+of CAPM3 will not be pivoted to a target cluster. An example of those objects is BareMetalHost, or
+user created ConfigMaps and Secrets which are reconciled by Baremetal Operator. To ensure that those objects are
+also pivoted as part of `clusterctl move`, `clusterctl.cluster.x-k8s.io` label needs to be set
+on the BareMetalHost CRD before pivoting. If there are other CRDs also need to be pivoted to the
+target cluster, the same label needs to be set on them.
+
+All the other objects owned by BareMetalHost, such as Secret and ConfigMap don't require this
+label to be set, because they hold ownerReferences to BareMetalHost, and that is good enough
+for clusterctl to move all the hierarchy of BareMetalHost object.
 
 ## Development Environment
 
-* See [metal3-dev-env](https://github.com/metal3-io/metal3-dev-env) for an
+There are multiple ways to setup a development environment:
+
+- [Using Tilt](docs/dev-setup.md#tilt-development-environment)
+- [Other management cluster](docs/dev-setup.md#development-using-Kind-or-Minikube)
+- See [metal3-dev-env](https://github.com/metal3-io/metal3-dev-env) for an
   end-to-end development and test environment for
-  `cluster-api-provider-baremetal` and
+  `cluster-api-provider-metal3` and
   [baremetal-operator](https://github.com/metal3-io/baremetal-operator).
-* [Setting up for tests](docs/dev/setup.md)
-* Using [Minikube](docs/dev/minikube.md)
-* Using [OpenShift 4](docs/dev/openshift.md)
 
 ## API
 
-See the [API Documentation](docs/api.md) for details about the `providerSpec`
-API used with this `cluster-api` provider.
+See the [API Documentation](docs/api.md) for details about the objects used with
+this Cluster API provider. You can also see the [cluster deployment
+workflow](docs/deployment_workflow.md) for the outline of the
+deployment process.
 
-## MachineSet Scaling
+## Architecture
 
-If you would like a MachineSet to be automatically scaled to the number of
-matching BareMetalHosts, annotate that MachineSet with key
-`metal3.io/autoscale-to-hosts` and any value.
+The architecture with the components involved is documented [here](docs/architecture.md)
 
-When reconciling a MachineSet, the controller will count all of the
-BareMetalHosts that either:
-* match the MachineSet's `Spec.Template.Spec.ProviderSpec.HostSelector` and
-  have a ConsumerRef that is `nil`
-* has a ConsumerRef that references a Machine that is part of the MachineSet
+## E2E test
 
-This ensures that in case a BareMetalHost has previously been consumed by a
-Machine, but either labels or selectors have since been changed, it will
-continue to get counted with the MachineSet that its Machine belongs to.
+To trigger e2e test on a PR, use the following phrases:
 
-## Machine Remediation
+On main branch:
 
-MachineHealthCheck Controller in [Machine-API operator](https://github.com/openshift/machine-api-operator) is checking Node's health.
-If you would like to remediate unhealthy Machines you should add the following
-to MachineHealthCheck CR:
-```
-annotations:
-   machine.openshift.io/remediation-strategy: external-baremetal
-```
+- **/test-v1b1-ubuntu-e2e** runs v1b1 e2e tests on Ubuntu
+- **/test-v1b1-centos-e2e** runs v1b1 e2e tests on CentOS
 
-Remediation is done by power-cycling the Host associated with the unhealthy Machine,
-using [BMO reboot API](https://github.com/metal3-io/metal3-docs/blob/master/design/baremetal-operator/reboot-interface.md)
+Release-0.5 branch:
 
-Remediation steps (triggered by the annotation mentioned above):
-1) Power off the host
-2) Add poweredOffForRemediation annotation to the unhealthy Machine
-3) Delete the node
-4) Power on the host
-5) Wait for the node the come up (by waiting for the node to be registered in the cluster)
-6) Remove poweredOffForRemediation annotation and the MAO's machine unhealthy annotation
+- **/test-v1a5-ubuntu-e2e** runs v1a5 e2e tests on Ubuntu
+- **/test-v1a5-centos-e2e** runs v1a5 e2e tests on CentOS
+
+More info about e2e test can be found [here](docs/e2e-test.md)

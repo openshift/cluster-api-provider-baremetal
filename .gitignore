@@ -10,6 +10,52 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+coverage.*
+
+# Ansible
+*.retry
+
+# vim
+*~
+*.swp
+
+# envfiles
+.env
+envfile
+
+# kubeconfigs
+kind.kubeconfig
+minikube.kubeconfig
+kubeconfig
+
+# ssh keys
+.ssh*
+
+# Example and binary output directory
+out
+releasenotes
+
+# vscode
+.vscode
+
+# goland
+.idea
 
 bin/*
-provider-components.yaml
+hack/tools/bin/*
+examples/_out/*
+examples/envsubst-go
+examples/provider-components/*-components.yaml
+out/*
+
+# e2e
+test/e2e/_out
+/_artifacts
+
+# Tilt files.
+.tiltbuild
+/tilt.d
+tilt-settings.json
+tilt_config.json
+
+github/
