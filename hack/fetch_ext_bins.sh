@@ -26,15 +26,9 @@ if [[ -n "${TRACE}" ]]; then
   set -x
 fi
 
-<<<<<<< HEAD:hack/fetch_ext_bins.sh
-k8s_version=1.16.4
-goarch=amd64
-goos="unknown"
-=======
 k8s_version=1.23.3
 arch=amd64
 os="unknown"
->>>>>>> upstream/main:vendor/sigs.k8s.io/cluster-api/scripts/fetch_ext_bins.sh
 
 if [[ "${OSTYPE}" == "linux"* ]]; then
   os="linux"
@@ -64,15 +58,7 @@ function header_text {
   echo "$header$*$reset"
 }
 
-<<<<<<< HEAD:hack/fetch_ext_bins.sh
-rc=0
-tmp_root=/tmp
-
-kb_root_dir=$tmp_root/kubebuilder
-kb_orig=$(pwd)
-=======
 kb_root_dir="/tmp/kubebuilder"
->>>>>>> upstream/main:vendor/sigs.k8s.io/cluster-api/scripts/fetch_ext_bins.sh
 
 # Skip fetching and untaring the tools by setting the SKIP_FETCH_TOOLS variable
 # in your environment to any value:
@@ -105,23 +91,8 @@ function fetch_tools {
 
 function setup_envs {
   header_text "setting up env vars"
-<<<<<<< HEAD:hack/fetch_ext_bins.sh
-
-  # Setup env vars
-  export PATH=/tmp/kubebuilder/bin:$PATH
-  export TEST_ASSET_KUBECTL=/tmp/kubebuilder/bin/kubectl
-  export TEST_ASSET_KUBE_APISERVER=/tmp/kubebuilder/bin/kube-apiserver
-  export TEST_ASSET_ETCD=/tmp/kubebuilder/bin/etcd
-
-  # Ensure that some home var is set and that it's not the root
-  export HOME=${HOME:=/tmp/kubebuilder-testing}
-  if [ $HOME == "/" ]; then
-    export HOME=/tmp/kubebuilder-testing
-  fi
-=======
   # Export binaries path"
   export PATH="${kb_root_dir}/bin:$PATH"
   export SKIP_FETCH_TOOLS=1
   export KUBEBUILDER_ASSETS="${kb_root_dir}/bin/"
->>>>>>> upstream/main:vendor/sigs.k8s.io/cluster-api/scripts/fetch_ext_bins.sh
 }
