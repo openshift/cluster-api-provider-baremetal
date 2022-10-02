@@ -67,3 +67,7 @@ vendor:
 	go mod tidy
 	go mod vendor
 	go mod verify
+
+.PHONY: metal3-crds
+metal3-crds:
+	./hack/fetch-metal3-crds.sh

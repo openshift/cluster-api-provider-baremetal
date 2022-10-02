@@ -43,6 +43,9 @@ type Metal3RemediationReconciler struct {
 	Log            logr.Logger
 }
 
+// Generate RBAC
+//go:generate go run ../../../vendor/sigs.k8s.io/controller-tools/cmd/controller-gen paths=./... rbac:roleName=machine-api-controllers-baremetal crd output:dir:=./../../../config/rbac
+
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=metal3remediations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=metal3remediations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=machine.openshift.io,resources=machines;machines/status,verbs=get;list;watch;create;update;patch;delete
