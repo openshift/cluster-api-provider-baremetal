@@ -312,6 +312,13 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1beta1.Machine) 
 	case bmh.StateRegistering:
 		log.Printf("Machine %v exists but Host is not manageable.", machine.Name)
 		return true, nil
+	case "":
+		// Handle control plane nodes even if Metal³ is not running
+		if host.Spec.ExternallyProvisioned {
+			log.Printf("Machine %v exists (externally provisioned).", machine.Name)
+			return true, nil
+		}
+		fallthrough
 	default:
 		log.Printf("Machine %v does not have provisioned Host (%v is %s).",
 			machine.Name, host.Name, host.Status.Provisioning.State)
