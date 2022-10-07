@@ -45,6 +45,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
+const (
+	// Align with MachineWebhookPort in https://github.com/openshift/machine-api-operator/blob/master/pkg/operator/sync.go
+	// or import from there when relevant change was merged
+	defaultWebhookPort    = 8440
+	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
+)
+
 // The default durations for the leader election operations.
 var (
 	leaseDuration = 120 * time.Second
@@ -91,6 +98,16 @@ func main() {
 		leaseDuration,
 		"The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled.",
 	)
+
+	webhookEnabled := flag.Bool("webhook-enabled", true,
+		"Webhook server, enabled by default. When enabled, the manager will run a webhook server.")
+
+	webhookPort := flag.Int("webhook-port", defaultWebhookPort,
+		"Webhook Server port, only used when webhook-enabled is true.")
+
+	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
+		"Webhook cert dir, only used when webhook-enabled is true.")
+
 	flag.Parse()
 
 	log := logf.Log.WithName("baremetal-controller-manager")
@@ -172,6 +189,21 @@ func main() {
 	}).SetupWithManager(ctx, mgr); err != nil {
 		log.Error(err, "unable to create controller", "controller", "Metal3Remediation")
 		os.Exit(1)
+	}
+
+	if *webhookEnabled {
+		mgr.GetWebhookServer().Port = *webhookPort
+		mgr.GetWebhookServer().CertDir = *webhookCertdir
+
+		if err := (&capm3apis.Metal3Remediation{}).SetupWebhookWithManager(mgr); err != nil {
+			log.Error(err, "unable to create webhook", "webhook", "Metal3Remediation")
+			os.Exit(1)
+		}
+
+		if err := (&capm3apis.Metal3RemediationTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+			log.Error(err, "unable to create webhook", "webhook", "Metal3RemediationTemplate")
+			os.Exit(1)
+		}
 	}
 
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
