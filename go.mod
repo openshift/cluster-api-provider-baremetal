@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/metal3-io/baremetal-operator v0.0.0-00010101000000-000000000000
-	github.com/metal3-io/baremetal-operator/apis v0.0.0
+	github.com/metal3-io/baremetal-operator/apis v0.1.1
 	github.com/openshift/api v0.0.0-20220525145417-ee5b62754c68
 	github.com/openshift/machine-api-operator v0.2.1-0.20220608065814-f76a8f3ab734
 	github.com/pkg/errors v0.9.1
@@ -42,6 +42,7 @@ require (
 	github.com/gobuffalo/flect v0.2.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
@@ -59,8 +60,8 @@ require (
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
-	github.com/metal3-io/baremetal-operator/pkg/hardwareutils v0.0.0 // indirect
-	github.com/metal3-io/cluster-api-provider-metal3/api v0.0.0-20220923112407-137605a494c1
+	github.com/metal3-io/baremetal-operator/pkg/hardwareutils v0.1.1 // indirect
+	github.com/metal3-io/cluster-api-provider-metal3/api v0.0.0
 	github.com/metal3-io/ip-address-manager/api v0.0.0-20220919121103-31c03f129143
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
@@ -117,6 +118,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 )
 
@@ -124,4 +126,6 @@ replace (
 	github.com/metal3-io/baremetal-operator => github.com/openshift/baremetal-operator v0.0.0-20220510135004-05f60709e46d
 	github.com/metal3-io/baremetal-operator/apis => github.com/openshift/baremetal-operator/apis v0.0.0-20220510135004-05f60709e46d
 	github.com/metal3-io/baremetal-operator/pkg/hardwareutils => github.com/openshift/baremetal-operator/pkg/hardwareutils v0.0.0-20220510135004-05f60709e46d
+	github.com/metal3-io/cluster-api-provider-metal3 => github.com/metal3-io/cluster-api-provider-metal3 v1.2.1-0.20220928094713-6d07ee63f3aa // release-1.2 branch
+	github.com/metal3-io/cluster-api-provider-metal3/api => github.com/metal3-io/cluster-api-provider-metal3/api v0.0.0-20220928094713-6d07ee63f3aa // release-1.2 branch
 )

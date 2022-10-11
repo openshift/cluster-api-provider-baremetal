@@ -7,6 +7,7 @@ package tools
 
 import (
 	// Need this for code generation
+	_ "github.com/golang/mock/mockgen"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 
 	// Need the whole vendored repo for applying manifests
