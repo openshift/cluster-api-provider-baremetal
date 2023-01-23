@@ -886,7 +886,7 @@ func (a *Actuator) nodeAddresses(host *bmh.BareMetalHost) ([]corev1.NodeAddress,
 	return addrs, nil
 }
 
-//deleteRemediationAnnotations deletes poweredOffForRemediation and remediation strategy annotations
+// deleteRemediationAnnotations deletes poweredOffForRemediation and remediation strategy annotations
 func (a *Actuator) deleteRemediationAnnotations(ctx context.Context, machine *machinev1beta1.Machine) error {
 	if len(machine.Annotations) == 0 {
 		return nil
@@ -904,7 +904,7 @@ func (a *Actuator) deleteRemediationAnnotations(ctx context.Context, machine *ma
 	return nil
 }
 
-//hasPowerOffRequestAnnotation checks if the requestPowerOffAnnotation exists on the baremetalhost
+// hasPowerOffRequestAnnotation checks if the requestPowerOffAnnotation exists on the baremetalhost
 func hasPowerOffRequestAnnotation(baremetalhost *bmh.BareMetalHost) (exists bool) {
 	if len(baremetalhost.Annotations) > 0 {
 		_, exists = baremetalhost.Annotations[requestPowerOffAnnotation]
@@ -912,7 +912,7 @@ func hasPowerOffRequestAnnotation(baremetalhost *bmh.BareMetalHost) (exists bool
 	return
 }
 
-//addPoweredOffForRemediationAnnotation adds a powered-off-for-remediation annotation to the machine
+// addPoweredOffForRemediationAnnotation adds a powered-off-for-remediation annotation to the machine
 func (a *Actuator) addPoweredOffForRemediationAnnotation(ctx context.Context, machine *machinev1beta1.Machine) error {
 	if machine.Annotations == nil {
 		machine.Annotations = make(map[string]string)
@@ -928,7 +928,7 @@ func (a *Actuator) addPoweredOffForRemediationAnnotation(ctx context.Context, ma
 	return err
 }
 
-//requestPowerOff adds requestPowerOffAnnotation on baremetalhost which signals BMO to power off the machine
+// requestPowerOff adds requestPowerOffAnnotation on baremetalhost which signals BMO to power off the machine
 func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareMetalHost) error {
 	if baremetalhost.Annotations == nil {
 		baremetalhost.Annotations = make(map[string]string)
@@ -953,7 +953,7 @@ func (a *Actuator) requestPowerOff(ctx context.Context, baremetalhost *bmh.BareM
 	return err
 }
 
-//requestPowerOn removes requestPowerOffAnnotation from baremetalhost which signals BMO to power on the machine
+// requestPowerOn removes requestPowerOffAnnotation from baremetalhost which signals BMO to power on the machine
 func (a *Actuator) requestPowerOn(ctx context.Context, machine *machinev1beta1.Machine, baremetalhost *bmh.BareMetalHost) error {
 	if machine.Annotations == nil {
 		machine.Annotations = make(map[string]string)
@@ -1004,9 +1004,9 @@ func isPowerOnTimedOut(machine *machinev1beta1.Machine) bool {
 
 // canReprovision checks if machine can be reprovisioned.
 // Machine can be reprovisione only if all of these conditions are met:
-//  * baremetalhost is not externally provisioned
-//  * machine is owned by a controller
-//  * machine role is not master
+//   - baremetalhost is not externally provisioned
+//   - machine is owned by a controller
+//   - machine role is not master
 func canReprovision(machine *machinev1beta1.Machine, baremetalhost *bmh.BareMetalHost) bool {
 	if baremetalhost.Spec.ExternallyProvisioned {
 		log.Printf("Reprovisioning of machine %q not allowed: BMH %q is externally provisioned", machine.Name, baremetalhost.Name)
