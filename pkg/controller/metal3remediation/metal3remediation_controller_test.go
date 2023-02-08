@@ -175,7 +175,7 @@ func setReconcileNormalRemediationExpectations(ctrl *gomock.Controller,
 				m.EXPECT().IncreaseRetryCount()
 				return m
 			}
-			m.EXPECT().SetOwnerRemediatedConditionNew(context.TODO())
+			m.EXPECT().CanReprovision(context.TODO())
 			m.EXPECT().SetUnhealthyAnnotation(context.TODO())
 			m.EXPECT().SetRemediationPhase(infrav1.PhaseDeleting)
 		}

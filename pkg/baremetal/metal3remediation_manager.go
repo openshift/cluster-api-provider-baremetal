@@ -44,7 +44,9 @@ const (
 	nodeLabelsBackupAnnotation      = "remediation.metal3.io/node-labels-backup"
 	// HostAnnotation is the key for an annotation that should go on a Metal3Machine to
 	// reference what BareMetalHost it corresponds to.
-	HostAnnotation = "metal3.io/BareMetalHost"
+	HostAnnotation    = "metal3.io/BareMetalHost"
+	machineRoleLabel  = "machine.openshift.io/cluster-api-machine-role"
+	machineRoleMaster = "master"
 )
 
 // RemediationManagerInterface is an interface for a RemediationManager.
@@ -69,13 +71,17 @@ type RemediationManagerInterface interface {
 	SetLastRemediationTime(remediationTime *metav1.Time)
 	GetTimeout() *metav1.Duration
 	IncreaseRetryCount()
-	SetOwnerRemediatedConditionNew(ctx context.Context) error
 	GetNode(ctx context.Context) (*corev1.Node, error)
 	UpdateNode(ctx context.Context, node *corev1.Node) error
 	DeleteNode(ctx context.Context, node *corev1.Node) error
 	SetNodeBackupAnnotations(annotations string, labels string) bool
 	GetNodeBackupAnnotations() (annotations, labels string)
 	RemoveNodeBackupAnnotations()
+
+	// OCP specific methods, differs from upstream metal3
+
+	CanReprovision(context.Context) (bool, error)
+	DeleteMachine(ctx context.Context) error
 }
 
 // RemediationManager is responsible for performing remediation reconciliation.
@@ -329,24 +335,6 @@ func (r *RemediationManager) IncreaseRetryCount() {
 	r.Metal3Remediation.Status.RetryCount++
 }
 
-// SetOwnerRemediatedConditionNew sets MachineOwnerRemediatedCondition on CAPI machine object
-// that have failed a healthcheck.
-func (r *RemediationManager) SetOwnerRemediatedConditionNew(ctx context.Context) error {
-	machineHelper, err := patch.NewHelper(r.OCPMachine, r.Client)
-	if err != nil {
-		r.Log.Info("Unable to create patch helper for Machine")
-		return err
-	}
-	// TODO
-	//conditions.MarkFalse(r.OCPMachine, clusterv1.MachineOwnerRemediatedCondition, clusterv1.WaitingForRemediationReason, clusterv1.ConditionSeverityWarning, "")
-	err = machineHelper.Patch(ctx, r.OCPMachine)
-	if err != nil {
-		r.Log.Info("Unable to patch Machine", "machine", r.OCPMachine)
-		return err
-	}
-	return nil
-}
-
 // GetNode returns the Node associated with the machine in the current context.
 func (r *RemediationManager) GetNode(ctx context.Context) (*corev1.Node, error) {
 
@@ -431,4 +419,33 @@ func (r *RemediationManager) RemoveNodeBackupAnnotations() {
 // getPowerOffAnnotationKey returns the key of the power off annotation.
 func (r *RemediationManager) getPowerOffAnnotationKey() string {
 	return fmt.Sprintf(powerOffAnnotation, r.Metal3Remediation.UID)
+}
+
+func (r *RemediationManager) CanReprovision(ctx context.Context) (bool, error) {
+	baremetalhost, _, err := r.GetUnhealthyHost(ctx)
+	if err != nil {
+		r.Log.Error(err, "Failed to get BMH for machine", "machine", r.OCPMachine.Name)
+		return false, err
+	}
+	if baremetalhost.Spec.ExternallyProvisioned {
+		r.Log.Info("Reprovisioning of machine not allowed: BMH is externally provisioned", "machine", r.OCPMachine.Name, "bmh", baremetalhost.Name)
+		return false, nil
+	}
+	if metav1.GetControllerOf(r.OCPMachine) == nil {
+		r.Log.Info("Reprovisioning of machine not allowed: no owning controller", "machine", r.OCPMachine.Name)
+		return false, nil
+	}
+	if r.OCPMachine.Labels[machineRoleLabel] == machineRoleMaster {
+		r.Log.Info("Reprovisioning of machine not allowed: has master role", "machine", r.OCPMachine.Name)
+		return false, nil
+	}
+	return true, nil
+}
+
+func (r *RemediationManager) DeleteMachine(ctx context.Context) error {
+	err := r.Client.Delete(ctx, r.OCPMachine)
+	if err != nil {
+		r.Log.Error(err, "Failed to delete machine", "machine", r.OCPMachine.Name)
+	}
+	return err
 }

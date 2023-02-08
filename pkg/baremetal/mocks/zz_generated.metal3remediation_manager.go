@@ -56,6 +56,35 @@ func (m *MockRemediationManagerInterface) EXPECT() *MockRemediationManagerInterf
 	return m.recorder
 }
 
+// CanReprovision mocks base method.
+func (m *MockRemediationManagerInterface) CanReprovision(arg0 context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CanReprovision", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CanReprovision indicates an expected call of CanReprovision.
+func (mr *MockRemediationManagerInterfaceMockRecorder) CanReprovision(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanReprovision", reflect.TypeOf((*MockRemediationManagerInterface)(nil).CanReprovision), arg0)
+}
+
+// DeleteMachine mocks base method.
+func (m *MockRemediationManagerInterface) DeleteMachine(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteMachine", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteMachine indicates an expected call of DeleteMachine.
+func (mr *MockRemediationManagerInterfaceMockRecorder) DeleteMachine(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMachine", reflect.TypeOf((*MockRemediationManagerInterface)(nil).DeleteMachine), ctx)
+}
+
 // DeleteNode mocks base method.
 func (m *MockRemediationManagerInterface) DeleteNode(ctx context.Context, node *v1.Node) error {
 	m.ctrl.T.Helper()
@@ -332,20 +361,6 @@ func (m *MockRemediationManagerInterface) SetNodeBackupAnnotations(annotations, 
 func (mr *MockRemediationManagerInterfaceMockRecorder) SetNodeBackupAnnotations(annotations, labels interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNodeBackupAnnotations", reflect.TypeOf((*MockRemediationManagerInterface)(nil).SetNodeBackupAnnotations), annotations, labels)
-}
-
-// SetOwnerRemediatedConditionNew mocks base method.
-func (m *MockRemediationManagerInterface) SetOwnerRemediatedConditionNew(ctx context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetOwnerRemediatedConditionNew", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetOwnerRemediatedConditionNew indicates an expected call of SetOwnerRemediatedConditionNew.
-func (mr *MockRemediationManagerInterfaceMockRecorder) SetOwnerRemediatedConditionNew(ctx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOwnerRemediatedConditionNew", reflect.TypeOf((*MockRemediationManagerInterface)(nil).SetOwnerRemediatedConditionNew), ctx)
 }
 
 // SetPowerOffAnnotation mocks base method.

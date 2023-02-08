@@ -253,14 +253,17 @@ func (r *Metal3RemediationReconciler) reconcileNormal(ctx context.Context,
 
 			r.Log.Info("Remediation timed out and retry limit reached")
 
-			// TODO what to do here in OCP
-			// When machine is still unhealthy after remediation, setting of OwnerRemediatedCondition
-			// moves control to CAPI machine controller. The owning controller will do
-			// preflight checks and handles the Machine deletion
-			err = remediationMgr.SetOwnerRemediatedConditionNew(ctx)
-			if err != nil {
-				r.Log.Error(err, "error setting cluster api conditions")
-				return ctrl.Result{}, errors.Wrapf(err, "error setting cluster api conditions")
+			// When machine is still unhealthy after remediation, and it can be re-provisioned, delete the machine.
+			// Note: this differs to the upstream metal3 remediation, which sets a condition which is handled by CAPI
+			if ok, err := remediationMgr.CanReprovision(ctx); err != nil {
+				return ctrl.Result{}, errors.Wrapf(err, "Failed to check if machine can be reprovisoned")
+			} else if ok {
+				r.Log.Info("Deleting machine")
+				if err := remediationMgr.DeleteMachine(ctx); err != nil {
+					return ctrl.Result{}, errors.Wrapf(err, "Failed to delete machine")
+				}
+			} else {
+				r.Log.Info("Machine can't be re-provisioned, will not delete it")
 			}
 
 			// Remediation failed, so set unhealthy annotation on BMH
