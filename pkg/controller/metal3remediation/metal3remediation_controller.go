@@ -88,34 +88,7 @@ func (r *Metal3RemediationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}()
 
-	// Fetch the Machine.
-	// TODO refactor, put this into manager?
-	getMachine := func() (*machinev1beta1.Machine, error) {
-		machine := &machinev1beta1.Machine{}
-
-		// try to get the machine via owner ref
-		for _, ownerRef := range metal3Remediation.OwnerReferences {
-			if ownerRef.Kind == "Machine" {
-				machineKey := client.ObjectKey{
-					Name:      ownerRef.Name,
-					Namespace: metal3Remediation.Namespace,
-				}
-				err := r.Client.Get(context.Background(), machineKey, machine)
-				if err == nil {
-					return machine, nil
-				} else if !apierrors.IsNotFound(err) {
-					remediationLog.Error(err, "failed to get machine from remediation CR owner ref",
-						"machine name", machineKey.Name, "namespace", machineKey.Namespace)
-					return nil, err
-				}
-			}
-		}
-		err := fmt.Errorf("no owner ref with kind Machine found")
-		remediationLog.Error(err, "")
-		return nil, err
-	}
-
-	ocpMachine, err := getMachine()
+	ocpMachine, err := r.getMachine(remediationLog, metal3Remediation)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -359,6 +332,30 @@ func (r *Metal3RemediationReconciler) remediateRebootStrategy(ctx context.Contex
 	remediationMgr.SetRemediationPhase(infrav1.PhaseWaiting)
 	r.Log.Info("Switch to waiting phase for power on and node restore")
 	return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+}
+
+func (r *Metal3RemediationReconciler) getMachine(remediationLog logr.Logger, metal3Remediation *infrav1.Metal3Remediation) (*machinev1beta1.Machine, error) {
+	// try to get the machine via owner ref
+	for _, ownerRef := range metal3Remediation.OwnerReferences {
+		if ownerRef.Kind == "Machine" {
+			machineKey := client.ObjectKey{
+				Name:      ownerRef.Name,
+				Namespace: metal3Remediation.Namespace,
+			}
+			machine := &machinev1beta1.Machine{}
+			err := r.Client.Get(context.Background(), machineKey, machine)
+			if err == nil {
+				return machine, nil
+			} else if !apierrors.IsNotFound(err) {
+				remediationLog.Error(err, "failed to get machine from remediation CR owner ref",
+					"machine name", machineKey.Name, "namespace", machineKey.Namespace)
+				return nil, err
+			}
+		}
+	}
+	err := fmt.Errorf("no owner ref with kind Machine found")
+	remediationLog.Error(err, "")
+	return nil, err
 }
 
 // Returns whether annotations or labels were set / updated.
