@@ -3,6 +3,10 @@
 IMG ?= controller:latest
 GOPATH=$(shell go env GOPATH)
 
+MOCKGEN := $(GOPATH)/bin/mockgen
+$(MOCKGEN): # Build mockgen
+	go build -tags=tools -o $(GOPATH)/bin github.com/golang/mock/mockgen
+
 .PHONY: build
 build:
 	@mkdir -p bin
@@ -43,8 +47,22 @@ vet:
 
 # Generate code
 .PHONY: generate
-generate:
+generate: $(MOCKGEN)
 	go generate ./pkg/... ./cmd/...
+
+	$(MOCKGEN) \
+	  -destination=./pkg/baremetal/mocks/zz_generated.metal3remediation_manager.go \
+	  -source=./pkg/baremetal/metal3remediation_manager.go \
+		-package=baremetal_mocks \
+		-copyright_file=./hack/boilerplate.go.txt \
+		RemediationManagerInterface
+
+	$(MOCKGEN) \
+	  -destination=./pkg/baremetal/mocks/zz_generated.manager_factory.go \
+	  -source=./pkg/baremetal/manager_factory.go \
+		-package=baremetal_mocks \
+		-copyright_file=./hack/boilerplate.go.txt \
+		ManagerFactoryInterface
 
 .PHONY: generate-check
 generate-check:
@@ -67,3 +85,7 @@ vendor:
 	go mod tidy
 	go mod vendor
 	go mod verify
+
+.PHONY: metal3-crds
+metal3-crds:
+	./hack/fetch-metal3-crds.sh

@@ -1,0 +1,28 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+  labels:
+    rbac.ext-remediation/aggregate-to-ext-remediation: "true"
+  creationTimestamp: null
+  name: machine-api-controllers-metal3-remediation-aggregation
+rules:
+  - apiGroups:
+      - infrastructure.cluster.x-k8s.io
+    resources:
+      - metal3remediationtemplates
+    verbs:
+      - get
+  - apiGroups:
+      - infrastructure.cluster.x-k8s.io
+    resources:
+      - metal3remediations
+    verbs:
+      - get
+      - list
+      - create
+      - delete
+

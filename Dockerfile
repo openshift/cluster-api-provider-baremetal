@@ -11,3 +11,6 @@ FROM registry.ci.openshift.org/ocp/4.13:base
 #    rpm -V $INSTALL_PKGS && \
 #    yum clean all
 COPY --from=builder /go/src/github.com/openshift/cluster-api-provider-baremetal/machine-controller-manager /
+COPY --from=builder /go/src/github.com/openshift/cluster-api-provider-baremetal/manifests /manifests
+
+LABEL io.openshift.release.operator=true

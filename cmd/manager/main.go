@@ -23,10 +23,13 @@ import (
 	"time"
 
 	bmoapis "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
+	capm3apis "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/apis"
+	"github.com/openshift/cluster-api-provider-baremetal/pkg/baremetal"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/cloud/baremetal/actuators/machine"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller"
+	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller/metal3remediation"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/manager/wrapper"
 	maomachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,11 +37,19 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+)
+
+const (
+	// Align with MachineWebhookPort in https://github.com/openshift/machine-api-operator/blob/master/pkg/operator/sync.go
+	// or import from there when relevant change was merged
+	defaultWebhookPort    = 8440
+	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
 )
 
 // The default durations for the leader election operations.
@@ -87,6 +98,16 @@ func main() {
 		leaseDuration,
 		"The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled.",
 	)
+
+	webhookEnabled := flag.Bool("webhook-enabled", true,
+		"Webhook server, enabled by default. When enabled, the manager will run a webhook server.")
+
+	webhookPort := flag.Int("webhook-port", defaultWebhookPort,
+		"Webhook Server port, only used when webhook-enabled is true.")
+
+	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
+		"Webhook cert dir, only used when webhook-enabled is true.")
+
 	flag.Parse()
 
 	log := logf.Log.WithName("baremetal-controller-manager")
@@ -146,12 +167,43 @@ func main() {
 		panic(err)
 	}
 
+	if err := capm3apis.AddToScheme(mgr.GetScheme()); err != nil {
+		panic(err)
+	}
+
 	// the manager wrapper will add an extra Watch to the controller
 	maomachine.AddWithActuator(wrapper.New(mgr), machineActuator)
 
 	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "Failed to add controller to manager")
 		os.Exit(1)
+	}
+
+	// Set up the context that's going to be used in controllers and for the manager.
+	ctx := signals.SetupSignalHandler()
+
+	if err := (&metal3remediation.Metal3RemediationReconciler{
+		Client:         mgr.GetClient(),
+		ManagerFactory: baremetal.NewManagerFactory(mgr.GetClient()),
+		Log:            ctrl.Log.WithName("controllers").WithName("Metal3Remediation"),
+	}).SetupWithManager(ctx, mgr); err != nil {
+		log.Error(err, "unable to create controller", "controller", "Metal3Remediation")
+		os.Exit(1)
+	}
+
+	if *webhookEnabled {
+		mgr.GetWebhookServer().Port = *webhookPort
+		mgr.GetWebhookServer().CertDir = *webhookCertdir
+
+		if err := (&capm3apis.Metal3Remediation{}).SetupWebhookWithManager(mgr); err != nil {
+			log.Error(err, "unable to create webhook", "webhook", "Metal3Remediation")
+			os.Exit(1)
+		}
+
+		if err := (&capm3apis.Metal3RemediationTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+			log.Error(err, "unable to create webhook", "webhook", "Metal3RemediationTemplate")
+			os.Exit(1)
+		}
 	}
 
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
@@ -162,7 +214,7 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		entryLog.Error(err, "unable to run manager")
 		os.Exit(1)
 	}
