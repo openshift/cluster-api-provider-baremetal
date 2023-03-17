@@ -110,4 +110,5 @@ replace (
 	github.com/metal3-io/baremetal-operator => github.com/openshift/baremetal-operator v0.0.0-20220510135004-05f60709e46d
 	github.com/metal3-io/baremetal-operator/apis => github.com/openshift/baremetal-operator/apis v0.0.0-20220510135004-05f60709e46d
 	github.com/metal3-io/baremetal-operator/pkg/hardwareutils => github.com/openshift/baremetal-operator/pkg/hardwareutils v0.0.0-20220510135004-05f60709e46d
+	go.mongodb.org/mongo-driver => go.mongodb.org/mongo-driver v1.5.1
 )
