@@ -22,24 +22,26 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
-	"go/importer"
 	"go/parser"
 	"go/token"
-	"go/types"
 	"io/ioutil"
 	"log"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/golang/mock/mockgen/model"
+	"golang.org/x/mod/modfile"
 )
 
 var (
 	imports  = flag.String("imports", "", "(source mode) Comma-separated name=path pairs of explicit imports to use.")
 	auxFiles = flag.String("aux_files", "", "(source mode) Comma-separated pkg=path pairs of auxiliary Go source files.")
 )
+
+// TODO: simplify error reporting
 
 // sourceMode generates mocks via source file.
 func sourceMode(source string) (*model.Package, error) {
@@ -74,8 +76,10 @@ func sourceMode(source string) (*model.Package, error) {
 			eq := strings.Index(kv, "=")
 			k, v := kv[:eq], kv[eq+1:]
 			if k == "." {
+				// TODO: Catch dupes?
 				dotImports[v] = true
 			} else {
+				// TODO: Catch dupes?
 				p.imports[k] = importedPkg{path: v}
 			}
 		}
@@ -121,7 +125,7 @@ type duplicateImport struct {
 }
 
 func (d duplicateImport) Error() string {
-	return fmt.Sprintf("%q is ambiguous because of duplicate imports: %v", d.name, d.duplicates)
+	return fmt.Sprintf("%q is ambigous because of duplicate imports: %v", d.name, d.duplicates)
 }
 
 func (d duplicateImport) Path() string        { log.Fatal(d.Error()); return "" }
@@ -248,12 +252,12 @@ func (p *fileParser) parsePackage(path string) (*fileParser, error) {
 }
 
 func (p *fileParser) parseInterface(name, pkg string, it *ast.InterfaceType) (*model.Interface, error) {
-	iface := &model.Interface{Name: name}
+	intf := &model.Interface{Name: name}
 	for _, field := range it.Methods.List {
 		switch v := field.Type.(type) {
 		case *ast.FuncType:
 			if nn := len(field.Names); nn != 1 {
-				return nil, fmt.Errorf("expected one name for interface %v, got %d", iface.Name, nn)
+				return nil, fmt.Errorf("expected one name for interface %v, got %d", intf.Name, nn)
 			}
 			m := &model.Method{
 				Name: field.Names[0].String(),
@@ -263,84 +267,84 @@ func (p *fileParser) parseInterface(name, pkg string, it *ast.InterfaceType) (*m
 			if err != nil {
 				return nil, err
 			}
-			iface.AddMethod(m)
+			intf.AddMethod(m)
 		case *ast.Ident:
 			// Embedded interface in this package.
-			embeddedIfaceType := p.auxInterfaces[pkg][v.String()]
-			if embeddedIfaceType == nil {
-				embeddedIfaceType = p.importedInterfaces[pkg][v.String()]
+			ei := p.auxInterfaces[pkg][v.String()]
+			if ei == nil {
+				ei = p.importedInterfaces[pkg][v.String()]
 			}
 
-			var embeddedIface *model.Interface
-			if embeddedIfaceType != nil {
+			var eintf *model.Interface
+			if ei != nil {
 				var err error
-				embeddedIface, err = p.parseInterface(v.String(), pkg, embeddedIfaceType)
+				eintf, err = p.parseInterface(v.String(), pkg, ei)
 				if err != nil {
 					return nil, err
 				}
 			} else {
 				// This is built-in error interface.
 				if v.String() == model.ErrorInterface.Name {
-					embeddedIface = &model.ErrorInterface
+					eintf = &model.ErrorInterface
 				} else {
 					return nil, p.errorf(v.Pos(), "unknown embedded interface %s", v.String())
 				}
 			}
 			// Copy the methods.
-			for _, m := range embeddedIface.Methods {
-				iface.AddMethod(m)
+			for _, m := range eintf.Methods {
+				intf.AddMethod(m)
 			}
 		case *ast.SelectorExpr:
 			// Embedded interface in another package.
-			filePkg, sel := v.X.(*ast.Ident).String(), v.Sel.String()
-			embeddedPkg, ok := p.imports[filePkg]
+			fpkg, sel := v.X.(*ast.Ident).String(), v.Sel.String()
+			epkg, ok := p.imports[fpkg]
 			if !ok {
-				return nil, p.errorf(v.X.Pos(), "unknown package %s", filePkg)
+				return nil, p.errorf(v.X.Pos(), "unknown package %s", fpkg)
 			}
 
-			var embeddedIface *model.Interface
+			var eintf *model.Interface
 			var err error
-			embeddedIfaceType := p.auxInterfaces[filePkg][sel]
-			if embeddedIfaceType != nil {
-				embeddedIface, err = p.parseInterface(sel, filePkg, embeddedIfaceType)
+			ei := p.auxInterfaces[fpkg][sel]
+			if ei != nil {
+				eintf, err = p.parseInterface(sel, fpkg, ei)
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				path := embeddedPkg.Path()
-				parser := embeddedPkg.Parser()
+				path := epkg.Path()
+				parser := epkg.Parser()
 				if parser == nil {
 					ip, err := p.parsePackage(path)
 					if err != nil {
 						return nil, p.errorf(v.Pos(), "could not parse package %s: %v", path, err)
 					}
 					parser = ip
-					p.imports[filePkg] = importedPkg{
-						path:   embeddedPkg.Path(),
+					p.imports[fpkg] = importedPkg{
+						path:   epkg.Path(),
 						parser: parser,
 					}
 				}
-				if embeddedIfaceType = parser.importedInterfaces[path][sel]; embeddedIfaceType == nil {
+				if ei = parser.importedInterfaces[path][sel]; ei == nil {
 					return nil, p.errorf(v.Pos(), "unknown embedded interface %s.%s", path, sel)
 				}
-				embeddedIface, err = parser.parseInterface(sel, path, embeddedIfaceType)
+				eintf, err = parser.parseInterface(sel, path, ei)
 				if err != nil {
 					return nil, err
 				}
 			}
 			// Copy the methods.
 			// TODO: apply shadowing rules.
-			for _, m := range embeddedIface.Methods {
-				iface.AddMethod(m)
+			for _, m := range eintf.Methods {
+				intf.AddMethod(m)
 			}
 		default:
 			return nil, fmt.Errorf("don't know how to mock method of type %T", field.Type)
 		}
 	}
-	return iface, nil
+	return intf, nil
 }
 
-func (p *fileParser) parseFunc(pkg string, f *ast.FuncType) (inParam []*model.Parameter, variadic *model.Parameter, outParam []*model.Parameter, err error) {
+func (p *fileParser) parseFunc(pkg string, f *ast.FuncType) (in []*model.Parameter, variadic *model.Parameter, out []*model.Parameter, err error) {
 	if f.Params != nil {
 		regParams := f.Params.List
 		if isVariadic(f) {
@@ -353,13 +357,13 @@ func (p *fileParser) parseFunc(pkg string, f *ast.FuncType) (inParam []*model.Pa
 			}
 			variadic = vp[0]
 		}
-		inParam, err = p.parseFieldList(pkg, regParams)
+		in, err = p.parseFieldList(pkg, regParams)
 		if err != nil {
 			return nil, nil, nil, p.errorf(f.Pos(), "failed parsing arguments: %v", err)
 		}
 	}
 	if f.Results != nil {
-		outParam, err = p.parseFieldList(pkg, f.Results.List)
+		out, err = p.parseFieldList(pkg, f.Results.List)
 		if err != nil {
 			return nil, nil, nil, p.errorf(f.Pos(), "failed parsing returns: %v", err)
 		}
@@ -406,27 +410,7 @@ func (p *fileParser) parseType(pkg string, typ ast.Expr) (model.Type, error) {
 	case *ast.ArrayType:
 		ln := -1
 		if v.Len != nil {
-			var value string
-			switch val := v.Len.(type) {
-			case (*ast.BasicLit):
-				value = val.Value
-			case (*ast.Ident):
-				// when the length is a const defined locally
-				value = val.Obj.Decl.(*ast.ValueSpec).Values[0].(*ast.BasicLit).Value
-			case (*ast.SelectorExpr):
-				// when the length is a const defined in an external package
-				usedPkg, err := importer.Default().Import(fmt.Sprintf("%s", val.X))
-				if err != nil {
-					return nil, p.errorf(v.Len.Pos(), "unknown package in array length: %v", err)
-				}
-				ev, err := types.Eval(token.NewFileSet(), usedPkg, token.NoPos, val.Sel.Name)
-				if err != nil {
-					return nil, p.errorf(v.Len.Pos(), "unknown constant in array length: %v", err)
-				}
-				value = ev.Value.String()
-			}
-
-			x, err := strconv.Atoi(value)
+			x, err := strconv.Atoi(v.Len.(*ast.BasicLit).Value)
 			if err != nil {
 				return nil, p.errorf(v.Len.Pos(), "bad array size: %v", err)
 			}
@@ -641,4 +625,45 @@ func packageNameOfDir(srcDir string) (string, error) {
 	return packageImport, nil
 }
 
-var errOutsideGoPath = errors.New("source directory is outside GOPATH")
+var errOutsideGoPath = errors.New("Source directory is outside GOPATH")
+
+// parseImportPackage get package import path via source file
+// an alternative implementation is to use:
+// cfg := &packages.Config{Mode: packages.NeedName, Tests: true, Dir: srcDir}
+// pkgs, err := packages.Load(cfg, "file="+source)
+// However, it will call "go list" and slow down the performance
+func parsePackageImport(srcDir string) (string, error) {
+	moduleMode := os.Getenv("GO111MODULE")
+	// trying to find the module
+	if moduleMode != "off" {
+		currentDir := srcDir
+		for {
+			dat, err := ioutil.ReadFile(filepath.Join(currentDir, "go.mod"))
+			if os.IsNotExist(err) {
+				if currentDir == filepath.Dir(currentDir) {
+					// at the root
+					break
+				}
+				currentDir = filepath.Dir(currentDir)
+				continue
+			} else if err != nil {
+				return "", err
+			}
+			modulePath := modfile.ModulePath(dat)
+			return filepath.ToSlash(filepath.Join(modulePath, strings.TrimPrefix(srcDir, currentDir))), nil
+		}
+	}
+	// fall back to GOPATH mode
+	goPaths := os.Getenv("GOPATH")
+	if goPaths == "" {
+		return "", fmt.Errorf("GOPATH is not set")
+	}
+	goPathList := strings.Split(goPaths, string(os.PathListSeparator))
+	for _, goPath := range goPathList {
+		sourceRoot := filepath.Join(goPath, "src") + string(os.PathSeparator)
+		if strings.HasPrefix(srcDir, sourceRoot) {
+			return filepath.ToSlash(strings.TrimPrefix(srcDir, sourceRoot)), nil
+		}
+	}
+	return "", errOutsideGoPath
+}
