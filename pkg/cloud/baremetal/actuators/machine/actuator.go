@@ -592,6 +592,8 @@ func (a *Actuator) provisionHost(ctx context.Context, host *bmh.BareMetalHost,
 	if equality.Semantic.DeepEqual(originalHost, host) {
 		return nil
 	}
+
+	log.Printf("updating host %v with deployment information", host.Name)
 	if err := a.client.Update(ctx, host); err != nil {
 		return gherrors.Wrap(err, "failed to provision host")
 	}
