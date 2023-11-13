@@ -163,7 +163,7 @@ func main() {
 	}
 
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
-		entryLog.Error(err, "unable to run manager")
+		entryLog.Error(err, "unable to run manager ")
 		os.Exit(1)
 	}
 }
