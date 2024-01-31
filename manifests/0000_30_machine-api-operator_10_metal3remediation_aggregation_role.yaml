@@ -16,6 +16,8 @@ rules:
       - metal3remediationtemplates
     verbs:
       - get
+      - list
+      - watch
   - apiGroups:
       - infrastructure.cluster.x-k8s.io
     resources:
@@ -23,6 +25,9 @@ rules:
     verbs:
       - get
       - list
+      - watch
       - create
+      - update
+      - patch
       - delete
 
