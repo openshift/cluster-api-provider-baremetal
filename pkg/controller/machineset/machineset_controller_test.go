@@ -199,7 +199,7 @@ func TestHostMatches(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		c := fakeclient.NewFakeClientWithScheme(scheme, tc.Machines...)
+		c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tc.Machines...).Build()
 		reconciler := ReconcileMachineSet{
 			Client: c,
 			scheme: scheme,
@@ -342,7 +342,7 @@ func TestScale(t *testing.T) {
 		&machine1, &machine2,
 		instance,
 	}
-	c := fakeclient.NewFakeClientWithScheme(scheme, resources...)
+	c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(resources...).Build()
 	reconciler := ReconcileMachineSet{
 		Client: c,
 		scheme: scheme,
@@ -425,7 +425,7 @@ func TestIgnore(t *testing.T) {
 		},
 	}
 
-	c := fakeclient.NewFakeClientWithScheme(scheme, instance)
+	c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(instance).Build()
 	reconciler := ReconcileMachineSet{
 		Client: c,
 		scheme: scheme,

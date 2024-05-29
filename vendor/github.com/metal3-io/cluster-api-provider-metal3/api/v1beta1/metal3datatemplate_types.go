@@ -18,6 +18,7 @@ package v1beta1
 
 import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -129,8 +130,14 @@ type FromPool struct {
 	// Key will be used as the key to set in the metadata map for cloud-init
 	Key string `json:"key"`
 
-	// Name is the name of the IPPool used to fetch the value to set in the metadata map for cloud-init
+	// Name is the name of the IP pool used to fetch the value to set in the metadata map for cloud-init
 	Name string `json:"name"`
+
+	// APIGroup is the api group of the IP pool.
+	APIGroup string `json:"apiGroup"`
+
+	// Kind is the kind of the IP pool
+	Kind string `json:"kind"`
 }
 
 // MetaData represents a keyand value of the metadata.
@@ -184,6 +191,16 @@ type MetaData struct {
 	FromAnnotations []MetaDataFromAnnotation `json:"fromAnnotations,omitempty"`
 }
 
+// NetworkLinkEthernetMacFromAnnotation contains the information to fetch an annotation
+// content, if the label does not exist, it is rendered as empty string.
+type NetworkLinkEthernetMacFromAnnotation struct {
+	// +kubebuilder:validation:Enum=machine;metal3machine;baremetalhost
+	// Object is the type of the object from which we retrieve the name
+	Object string `json:"object"`
+	// Annotation is the key of the Annotation to fetch
+	Annotation string `json:"annotation"`
+}
+
 // NetworkLinkEthernetMac represents the Mac address content.
 type NetworkLinkEthernetMac struct {
 	// String contains the MAC address given as a string
@@ -194,6 +211,11 @@ type NetworkLinkEthernetMac struct {
 	// Introspection details from which to fetch the MAC address
 	// +optional
 	FromHostInterface *string `json:"fromHostInterface,omitempty"`
+
+	// FromAnnotation references an object Annotation to retrieve the
+	// MAC address from
+	// +optional
+	FromAnnotation *NetworkLinkEthernetMacFromAnnotation `json:"fromAnnotation,omitempty"`
 }
 
 // NetworkDataLinkEthernet represents an ethernet link object.
@@ -224,6 +246,11 @@ type NetworkDataLinkBond struct {
 	// balance-rr, active-backup, balance-xor, broadcast, balance-tlb, balance-alb, 802.3ad
 	BondMode string `json:"bondMode"`
 
+	// +kubebuilder:validation:Enum="layer2";"layer3+4";"layer2+3"
+	// Selects the transmit hash policy used for port selection in balance-xor and 802.3ad modes
+	// +optional
+	BondXmitHashPolicy string `json:"bondXmitHashPolicy"`
+
 	// Id is the ID of the interface (used for naming)
 	Id string `json:"id"` //nolint:revive,stylecheck
 
@@ -238,6 +265,7 @@ type NetworkDataLinkBond struct {
 	MACAddress *NetworkLinkEthernetMac `json:"macAddress"`
 
 	// BondLinks is the list of links that are part of the bond.
+	// +optional
 	BondLinks []string `json:"bondLinks"`
 }
 
@@ -385,8 +413,11 @@ type NetworkDataIPv4 struct {
 	// Link is the link on which the network applies
 	Link string `json:"link"`
 
-	// IPAddressFromIPPool contains the name of the IPPool to use to get an ip address
-	IPAddressFromIPPool string `json:"ipAddressFromIPPool"`
+	// IPAddressFromIPPool contains the name of the IP pool to use to get an ip address
+	IPAddressFromIPPool string `json:"ipAddressFromIPPool,omitempty"`
+
+	// FromPoolRef is a reference to a IP pool to allocate an address from.
+	FromPoolRef *corev1.TypedLocalObjectReference `json:"fromPoolRef,omitempty"`
 
 	// Routes contains a list of IPv4 routes
 	// +optional
@@ -404,6 +435,9 @@ type NetworkDataIPv6 struct {
 
 	// IPAddressFromIPPool contains the name of the IPPool to use to get an ip address
 	IPAddressFromIPPool string `json:"ipAddressFromIPPool"`
+
+	// FromPoolRef is a reference to a IP pool to allocate an address from.
+	FromPoolRef *corev1.TypedLocalObjectReference `json:"fromPoolRef,omitempty"`
 
 	// Routes contains a list of IPv6 routes
 	// +optional
@@ -542,5 +576,5 @@ type Metal3DataTemplateList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&Metal3DataTemplate{}, &Metal3DataTemplateList{})
+	objectTypes = append(objectTypes, &Metal3DataTemplate{}, &Metal3DataTemplateList{})
 }

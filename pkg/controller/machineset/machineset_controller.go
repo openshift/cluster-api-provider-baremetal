@@ -65,13 +65,13 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to MachineSet
-	err = c.Watch(&source.Kind{Type: &machinev1beta1.MachineSet{}},
+	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1beta1.MachineSet{}),
 		&handler.EnqueueRequestForObject{}, predicate.ResourceVersionChangedPredicate{})
 	if err != nil {
 		return err
 	}
 	mapper := msmapper{client: mgr.GetClient()}
-	err = c.Watch(&source.Kind{Type: &bmh.BareMetalHost{}},
+	err = c.Watch(source.Kind(mgr.GetCache(), &bmh.BareMetalHost{}),
 		handler.EnqueueRequestsFromMapFunc(mapper.Map), predicate.ResourceVersionChangedPredicate{})
 	if err != nil {
 		return err
