@@ -1513,13 +1513,14 @@ func TestEnsureMachineAddresses(t *testing.T) {
 	}
 
 	testCases := []struct {
+		Name            string
 		Host            *bmh.BareMetalHost
 		Machine         *machinev1beta1.Machine
 		ExpectedMachine machinev1beta1.Machine
 		Changed         bool
 	}{
 		{
-			// machine status updated
+			Name: "machine status updated",
 			Host: &bmh.BareMetalHost{
 				Status: bmh.BareMetalHostStatus{
 					HardwareDetails: &bmh.HardwareDetails{
@@ -1551,7 +1552,7 @@ func TestEnsureMachineAddresses(t *testing.T) {
 			Changed: true,
 		},
 		{
-			// machine status unchanged
+			Name: "machine status unchanged - 1",
 			Host: &bmh.BareMetalHost{
 				Status: bmh.BareMetalHostStatus{
 					HardwareDetails: &bmh.HardwareDetails{
@@ -1594,7 +1595,7 @@ func TestEnsureMachineAddresses(t *testing.T) {
 			Changed: false,
 		},
 		{
-			// machine status unchanged
+			Name: "machine status unchanged - 2",
 			Host: &bmh.BareMetalHost{},
 			Machine: &machinev1beta1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1611,33 +1612,23 @@ func TestEnsureMachineAddresses(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
-		if tc.Machine != nil {
-			c.Create(context.TODO(), tc.Machine)
-		}
-		actuator, err := NewActuator(ActuatorParams{
-			Client: c,
-		})
-		if err != nil {
-			t.Error(err)
-		}
-
-		err = actuator.ensureMachineAddresses(context.TODO(), tc.Machine, tc.Host)
-		if tc.Changed {
-			expectRequeueAfterError(err, t)
-		} else {
+		t.Run(tc.Name, func(t *testing.T) {
+			c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tc.Machine).WithStatusSubresource(tc.Machine).Build()
+			actuator, err := NewActuator(ActuatorParams{
+				Client: c,
+			})
 			if err != nil {
-				t.Errorf("unexpected error %v", err)
+				t.Error(err)
 			}
-		}
-		key := client.ObjectKey{
-			Name:      tc.Machine.Name,
-			Namespace: tc.Machine.Namespace,
-		}
-		machine := machinev1beta1.Machine{}
-		c.Get(context.TODO(), key, &machine)
 
-		if &tc.Machine != nil {
+			err = actuator.ensureMachineAddresses(context.TODO(), tc.Machine, tc.Host)
+			if tc.Changed {
+				expectRequeueAfterError(err, t)
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error %v", err)
+				}
+			}
 			key := client.ObjectKey{
 				Name:      tc.Machine.Name,
 				Namespace: tc.Machine.Namespace,
@@ -1645,14 +1636,23 @@ func TestEnsureMachineAddresses(t *testing.T) {
 			machine := machinev1beta1.Machine{}
 			c.Get(context.TODO(), key, &machine)
 
-			if tc.Machine.Status.Addresses != nil {
-				for i, address := range tc.ExpectedMachine.Status.Addresses {
-					if address != machine.Status.Addresses[i] {
-						t.Errorf("expected Address %v, found %v", address, machine.Status.Addresses[i])
+			if &tc.Machine != nil {
+				key := client.ObjectKey{
+					Name:      tc.Machine.Name,
+					Namespace: tc.Machine.Namespace,
+				}
+				machine := machinev1beta1.Machine{}
+				c.Get(context.TODO(), key, &machine)
+
+				if tc.Machine.Status.Addresses != nil {
+					for i, address := range tc.ExpectedMachine.Status.Addresses {
+						if address != machine.Status.Addresses[i] {
+							t.Errorf("expected Address %v, found %v", address, machine.Status.Addresses[i])
+						}
 					}
 				}
 			}
-		}
+		})
 	}
 }
 
@@ -1671,13 +1671,14 @@ func TestApplyMachineStatus(t *testing.T) {
 	}
 
 	testCases := []struct {
+		Name                  string
 		Machine               *machinev1beta1.Machine
 		Addresses             []corev1.NodeAddress
 		ExpectedNodeAddresses []corev1.NodeAddress
 		Changed               bool
 	}{
 		{
-			// Machine status updated
+			Name: "Machine status updated",
 			Machine: &machinev1beta1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "machine1",
@@ -1692,7 +1693,7 @@ func TestApplyMachineStatus(t *testing.T) {
 			Changed:               true,
 		},
 		{
-			// Machine status unchanged
+			Name: "Machine status unchanged",
 			Machine: &machinev1beta1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "machine1",
@@ -1709,40 +1710,39 @@ func TestApplyMachineStatus(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
-		if tc.Machine != nil {
-			c.Create(context.TODO(), tc.Machine)
-		}
-		actuator, err := NewActuator(ActuatorParams{
-			Client: c,
-		})
-		if err != nil {
-			t.Error(err)
-		}
-
-		err = actuator.applyMachineStatus(context.TODO(), tc.Machine, tc.Addresses)
-		if tc.Changed {
-			expectRequeueAfterError(err, t)
-		} else {
+		t.Run(tc.Name, func(t *testing.T) {
+			c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tc.Machine).WithStatusSubresource(tc.Machine).Build()
+			actuator, err := NewActuator(ActuatorParams{
+				Client: c,
+			})
 			if err != nil {
-				t.Errorf("unexpected error %v", err)
+				t.Error(err)
 			}
-		}
 
-		key := client.ObjectKey{
-			Name:      tc.Machine.Name,
-			Namespace: tc.Machine.Namespace,
-		}
-		machine := machinev1beta1.Machine{}
-		c.Get(context.TODO(), key, &machine)
-
-		if tc.Machine.Status.Addresses != nil {
-			for i, address := range tc.ExpectedNodeAddresses {
-				if address != machine.Status.Addresses[i] {
-					t.Errorf("expected Address %v, found %v", address, machine.Status.Addresses[i])
+			err = actuator.applyMachineStatus(context.TODO(), tc.Machine, tc.Addresses)
+			if tc.Changed {
+				expectRequeueAfterError(err, t)
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error %v", err)
 				}
 			}
-		}
+
+			key := client.ObjectKey{
+				Name:      tc.Machine.Name,
+				Namespace: tc.Machine.Namespace,
+			}
+			machine := machinev1beta1.Machine{}
+			c.Get(context.TODO(), key, &machine)
+
+			if tc.Machine.Status.Addresses != nil {
+				for i, address := range tc.ExpectedNodeAddresses {
+					if address != machine.Status.Addresses[i] {
+						t.Errorf("expected Address %v, found %v", address, machine.Status.Addresses[i])
+					}
+				}
+			}
+		})
 	}
 }
 
