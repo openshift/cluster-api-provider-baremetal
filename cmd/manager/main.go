@@ -38,11 +38,14 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 const (
@@ -125,10 +128,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	var watchNamespaces map[string]cache.Config
+	if *watchNamespace != "" {
+		watchNamespaces = map[string]cache.Config{
+			*watchNamespace: {},
+		}
+		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", *watchNamespace)
+	}
+
 	// Setup a Manager
 	opts := manager.Options{
 		HealthProbeBindAddress:  *healthAddr,
-		MetricsBindAddress:      *metricsAddr,
+		Metrics:                 metricsserver.Options{BindAddress: *metricsAddr},
 		LeaderElection:          *leaderElect,
 		LeaderElectionID:        "controller-leader-election-capbm",
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
@@ -136,10 +147,16 @@ func main() {
 		// Slow the default retry and renew election rate to reduce etcd writes at idle: BZ 1858400
 		RetryPeriod:   &retryPeriod,
 		RenewDeadline: &renewDeadline,
+		Cache: cache.Options{
+			DefaultNamespaces: watchNamespaces,
+		},
 	}
-	if *watchNamespace != "" {
-		opts.Namespace = *watchNamespace
-		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
+
+	if *webhookEnabled {
+		opts.WebhookServer = webhook.NewServer(webhook.Options{
+			Port:    *webhookPort,
+			CertDir: *webhookCertdir,
+		})
 	}
 
 	mgr, err := manager.New(cfg, opts)
@@ -192,9 +209,6 @@ func main() {
 	}
 
 	if *webhookEnabled {
-		mgr.GetWebhookServer().Port = *webhookPort
-		mgr.GetWebhookServer().CertDir = *webhookCertdir
-
 		if err := (&capm3apis.Metal3Remediation{}).SetupWebhookWithManager(mgr); err != nil {
 			log.Error(err, "unable to create webhook", "webhook", "Metal3Remediation")
 			os.Exit(1)
