@@ -24,7 +24,7 @@ type msmapper struct {
 
 // Map will return reconcile requests for a MachineSet if the event is for a
 // BareMetalHost and that BareMetalHost matches the MachineSet's HostSelector.
-func (m *msmapper) Map(obj client.Object) []reconcile.Request {
+func (m *msmapper) Map(_ context.Context, obj client.Object) []reconcile.Request {
 	requests := []reconcile.Request{}
 	if host, ok := obj.(*bmh.BareMetalHost); ok {
 		msets := machinev1beta1.MachineSetList{}
