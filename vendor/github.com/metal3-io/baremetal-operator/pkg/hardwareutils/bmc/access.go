@@ -1,12 +1,19 @@
 package bmc
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
 	"strings"
+)
 
-	"github.com/pkg/errors"
+const (
+	noRaid   = "no-raid"
+	ipxe     = "ipxe"
+	enabled  = "Enabled"
+	disabled = "Disabled"
 )
 
 // AccessDetailsFactory describes a callable that returns a new
@@ -19,7 +26,7 @@ var factories = map[string]AccessDetailsFactory{}
 // with optional scheme extensions.
 //
 // RegisterFactory("bmcname", theFunc, []string{"http", "https"})
-// maps "bmcname", "bmcname+http", and "bmcname+https" to theFunc
+// maps "bmcname", "bmcname+http", and "bmcname+https" to theFunc.
 func RegisterFactory(name string, factory AccessDetailsFactory, schemes []string) {
 	factories[name] = factory
 
@@ -73,6 +80,9 @@ type AccessDetails interface {
 	RAIDInterface() string
 	VendorInterface() string
 
+	// Firmware interface to set
+	FirmwareInterface() string
+
 	// Whether the driver supports changing secure boot state.
 	SupportsSecureBoot() bool
 
@@ -86,8 +96,7 @@ type AccessDetails interface {
 	BuildBIOSSettings(firmwareConfig *FirmwareConfig) (settings []map[string]string, err error)
 }
 
-func getParsedURL(address string) (parsedURL *url.URL, err error) {
-	// Start by assuming "type://host:port"
+func GetParsedURL(address string) (parsedURL *url.URL, err error) {
 	parsedURL, err = url.Parse(address)
 	if err != nil {
 		// We failed to parse the URL, but it may just be a host or
@@ -100,7 +109,7 @@ func getParsedURL(address string) (parsedURL *url.URL, err error) {
 			// values. Otherwise, report the original parser error.
 			_, _, err2 := net.SplitHostPort(address)
 			if err2 != nil {
-				return nil, errors.Wrap(err, "failed to parse BMC address information")
+				return nil, fmt.Errorf("failed to parse BMC address information: %w", err)
 			}
 		}
 		parsedURL = &url.URL{
@@ -112,33 +121,37 @@ func getParsedURL(address string) (parsedURL *url.URL, err error) {
 		if parsedURL.Opaque != "" {
 			parsedURL, err = url.Parse(strings.Replace(address, ":", "://", 1))
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to parse BMC address information")
-
+				return nil, fmt.Errorf("failed to parse BMC address information: %w", err)
 			}
 		}
 		if parsedURL.Scheme == "" {
 			if parsedURL.Hostname() == "" {
 				// If there was no scheme at all, the hostname was
 				// interpreted as a path.
-				parsedURL, err = url.Parse(strings.Join([]string{"ipmi://", address}, ""))
+				parsedURL, err = url.Parse("ipmi://" + address)
 				if err != nil {
-					return nil, errors.Wrap(err, "failed to parse BMC address information")
+					return nil, fmt.Errorf("failed to parse BMC address information: %w", err)
 				}
 			}
 		}
 	}
+
+	// Check for expected hostname format
+	if err := checkDNSValid(parsedURL.Hostname()); err != nil {
+		return nil, fmt.Errorf("failed to parse BMC address information: %w", err)
+	}
+
 	return parsedURL, nil
 }
 
 // NewAccessDetails creates an AccessDetails structure from the URL
 // for a BMC.
 func NewAccessDetails(address string, disableCertificateVerification bool) (AccessDetails, error) {
-
 	if address == "" {
 		return nil, errors.New("missing BMC address")
 	}
 
-	parsedURL, err := getParsedURL(address)
+	parsedURL, err := GetParsedURL(address)
 	if err != nil {
 		return nil, err
 	}
@@ -149,4 +162,23 @@ func NewAccessDetails(address string, disableCertificateVerification bool) (Acce
 	}
 
 	return factory(parsedURL, disableCertificateVerification)
+}
+
+func checkDNSValid(address string) error {
+	// Allowing empty BMC address
+	if address == "" {
+		return nil
+	}
+
+	// Check if its a IPv6/IPv4 address
+	if net.ParseIP(address) != nil {
+		return nil
+	}
+
+	// Check if BMC address hostname follows DNS Standard
+	valid, _ := regexp.MatchString(`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]{0,61}[A-Za-z0-9])$`, address)
+	if !valid {
+		return fmt.Errorf("BMC address hostname/IP : [%s] is invalid", address)
+	}
+	return nil
 }
