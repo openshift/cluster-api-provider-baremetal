@@ -3,7 +3,8 @@ DBG         ?= 0
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
-BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.18
+BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.21
+GOLANGCI_LINT = go run ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
 
 # Enable go modules and vendoring
 # https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support
@@ -17,10 +18,15 @@ ifeq ($(DBG),1)
 GOGCFLAGS ?= -gcflags=all="-N -l"
 endif
 
+TOOLS_DIR=./tools
+BIN_DIR=bin
+TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
+CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
+
 .PHONY: all
 all: check build test
 
-NO_DOCKER ?= 0
+NO_DOCKER ?= 1
 
 ifeq ($(shell command -v podman > /dev/null 2>&1 ; echo $$? ), 0)
 	ENGINE=podman
@@ -32,7 +38,7 @@ endif
 
 USE_DOCKER ?= 0
 ifeq ($(USE_DOCKER), 1)
-	ENGINE=docker	
+	ENGINE=docker
 endif
 
 ifeq ($(NO_DOCKER), 1)
@@ -41,9 +47,16 @@ ifeq ($(NO_DOCKER), 1)
 else
   DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z  -w /go/src/github.com/openshift/machine-api-operator $(BUILD_IMAGE)
   # The command below is for building/testing with the actual image that Openshift uses. Uncomment/comment out to use instead of above command. CI registry pull secret is required to use this image.
-  # DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.18-openshift-4.11
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
+
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VERSION = 1.29
+
+$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
+	cd $(TOOLS_DIR); GO111MODULE=on GOFLAGS=-mod=vendor go build -tags=tools -o $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
 .PHONY: vendor
 vendor:
@@ -68,7 +81,7 @@ machine-healthcheck:
 	$(DOCKER_CMD) ./hack/go-build.sh machine-healthcheck
 
 .PHONY: vsphere
-vsphere:
+vsphere: generate-third-party-deepcopy
 	$(DOCKER_CMD) ./hack/go-build.sh vsphere
 
 .PHONY: machineset
@@ -88,12 +101,10 @@ test-sec:
 	$(DOCKER_CMD) hack/gosec.sh ./...
 
 .PHONY: test
-test: ## Run tests
-	@echo -e "\033[32mTesting...\033[0m"
-	$(DOCKER_CMD) hack/ci-test.sh
+test: unit
 
 unit:
-	$(DOCKER_CMD) go test ./pkg/... ./cmd/...
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" ./hack/ci-test.sh
 
 .PHONY: image
 image: ## Build docker image
@@ -110,8 +121,8 @@ push: ## Push image to docker registry
 	$(ENGINE) push "$(IMAGE):$(MUTABLE_TAG)"
 
 .PHONY: lint
-lint: ## Go lint your code
-	 $(DOCKER_CMD) hack/go-lint.sh -min_confidence 0.3 $(go list -f '{{ .ImportPath }}' ./...)
+lint: ## Run golangci-lint over the codebase.
+	 $(call ensure-home, ${GOLANGCI_LINT} run ./pkg/... ./cmd/... --timeout=10m)
 
 .PHONY: fmt
 fmt: ## Update and show diff for import lines
@@ -123,7 +134,13 @@ goimports: ## Go fmt your code
 
 .PHONY: vet
 vet: ## Apply go vet to all go files
-	$(DOCKER_CMD) hack/go-vet.sh ./...
+	$(DOCKER_CMD) hack/go-vet.sh ./pkg/... ./cmd/...
+
+.PHONY: generate-third-party-deepcopy
+generate-third-party-deepcopy: $(CONTROLLER_GEN)
+	$(CONTROLLER_GEN) object  paths="./third_party/cluster-api/..."
+	$(CONTROLLER_GEN) crd paths="./third_party/cluster-api/..." output\:crd\:artifacts\:config=./third_party/cluster-api/crd
+
 
 .PHONY: crds-sync
 crds-sync: ## Sync crds in install with the ones in the vendored oc/api
@@ -136,3 +153,11 @@ verify-crds-sync: ## Verify that the crds in install and the ones in vendored oc
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+define ensure-home
+	@ export HOME=$${HOME:=/tmp/kubebuilder-testing}; \
+	if [ $${HOME} == "/" ]; then \
+	  export HOME=/tmp/kubebuilder-testing; \
+	fi; \
+	$(1)
+endef
