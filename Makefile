@@ -3,9 +3,18 @@
 IMG ?= controller:latest
 GOPATH=$(shell go env GOPATH)
 
-MOCKGEN := $(GOPATH)/bin/mockgen
+BIN_DIR := bin
+MOCKGEN := $(BIN_DIR)/mockgen
+SETUP_ENVTEST := $(BIN_DIR)/setup-envtest
+ENVTEST_K8S_VERSION := 1.29.x
+ENVTEST_OS := linux
+ARCH ?= amd64
+
 $(MOCKGEN): # Build mockgen
-	go build -tags=tools -o $(GOPATH)/bin github.com/golang/mock/mockgen
+	go build -tags=tools -o $(BIN_DIR)/mockgen github.com/golang/mock/mockgen
+
+$(SETUP_ENVTEST):
+	go build -tags=tools -o $(BIN_DIR)/setup-envtest sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 .PHONY: build
 build:
@@ -21,8 +30,9 @@ test: generate fmt vet unit
 unit: unit-test
 
 .PHONY: unit-test
-unit-test:
-	go test ./pkg/... ./cmd/... -coverprofile cover.out
+unit-test: $(SETUP_ENVTEST)
+	$(shell $(SETUP_ENVTEST) use -p env --os $(ENVTEST_OS) --arch $(ARCH) $(ENVTEST_K8S_VERSION)) && \
+		go test ./pkg/... ./cmd/... -coverprofile cover.out
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 .PHONY: run
