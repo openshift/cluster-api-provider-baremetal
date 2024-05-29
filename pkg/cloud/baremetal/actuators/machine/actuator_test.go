@@ -415,7 +415,7 @@ func TestChooseHost(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Scenario, func(t *testing.T) {
-			c := fakeclient.NewFakeClientWithScheme(scheme, tc.Hosts...)
+			c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tc.Hosts...).Build()
 
 			actuator, err := NewActuator(ActuatorParams{
 				Client: c,
@@ -563,7 +563,7 @@ func TestProvisionHost(t *testing.T) {
 			// test setup
 			scheme := runtime.NewScheme()
 			bmoapis.AddToScheme(scheme)
-			c := fakeclient.NewFakeClientWithScheme(scheme, &tc.Host)
+			c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&tc.Host).Build()
 
 			actuator, err := NewActuator(ActuatorParams{
 				Client: c,
@@ -654,7 +654,7 @@ func TestExists(t *testing.T) {
 			},
 		},
 	}
-	c := fakeclient.NewFakeClientWithScheme(scheme, &host)
+	c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&host).Build()
 
 	testCases := []struct {
 		Client      client.Client
@@ -721,7 +721,7 @@ func TestGetHost(t *testing.T) {
 			Namespace: "myns",
 		},
 	}
-	c := fakeclient.NewFakeClientWithScheme(scheme, &host)
+	c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&host).Build()
 
 	testCases := []struct {
 		Client        client.Client
@@ -785,7 +785,7 @@ func TestEnsureProviderID(t *testing.T) {
 	bmoapis.AddToScheme(scheme)
 	corev1.AddToScheme(scheme)
 
-	c := fakeclient.NewFakeClientWithScheme(scheme)
+	c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 
 	uid := uuid.NewUUID()
 
@@ -990,7 +990,7 @@ func TestEnsureAnnotation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Scenario, func(t *testing.T) {
-			c := fakeclient.NewFakeClientWithScheme(scheme, &tc.Machine)
+			c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&tc.Machine).Build()
 			actuator, err := NewActuator(ActuatorParams{
 				Client: c,
 			})
@@ -1373,7 +1373,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		c := fakeclient.NewFakeClientWithScheme(scheme)
+		c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 		if tc.Host != nil {
 			c.Create(context.TODO(), tc.Host)
 		}
@@ -1611,7 +1611,7 @@ func TestEnsureMachineAddresses(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		c := fakeclient.NewFakeClientWithScheme(scheme)
+		c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 		if tc.Machine != nil {
 			c.Create(context.TODO(), tc.Machine)
 		}
@@ -1709,7 +1709,7 @@ func TestApplyMachineStatus(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		c := fakeclient.NewFakeClientWithScheme(scheme)
+		c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 		if tc.Machine != nil {
 			c.Create(context.TODO(), tc.Machine)
 		}
@@ -1829,7 +1829,7 @@ func TestNodeAddresses(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		c := fakeclient.NewFakeClientWithScheme(scheme)
+		c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 		if tc.Host != nil {
 			c.Create(context.TODO(), tc.Host)
 		}
@@ -1940,7 +1940,7 @@ func TestRemediation(t *testing.T) {
 	bmoapis.AddToScheme(scheme)
 	corev1.AddToScheme(scheme)
 
-	c := fakeclient.NewFakeClientWithScheme(scheme)
+	c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 
 	actuator, err := NewActuator(ActuatorParams{
 		Client: c,
@@ -2162,7 +2162,7 @@ func TestGetMhcByMachine(t *testing.T) {
 	machinev1beta1.AddToScheme(scheme)
 	corev1.AddToScheme(scheme)
 
-	c := fakeclient.NewFakeClientWithScheme(scheme)
+	c := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 
 	actuator, err := NewActuator(ActuatorParams{
 		Client: c,

@@ -1,6 +1,7 @@
 package wrapper
 
 import (
+	"context"
 	"testing"
 
 	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
@@ -47,7 +48,7 @@ func TestMap(t *testing.T) {
 	} {
 		obj = tc.Host
 
-		reqs := bmhMap(obj)
+		reqs := bmhMap(context.TODO(), obj)
 
 		if tc.ExpectRequest {
 			if len(reqs) != 1 {

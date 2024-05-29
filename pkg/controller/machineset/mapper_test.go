@@ -17,6 +17,7 @@ limitations under the License.
 package machineset
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -85,11 +86,12 @@ func TestMapper(t *testing.T) {
 		if err != nil {
 			t.Errorf("%v", err)
 		}
-		c := fakeclient.NewFakeClientWithScheme(scheme, ms, tc.Host)
+		c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ms, tc.Host).Build()
+
 		mapper := msmapper{client: c}
 
 		mo = tc.Host
-		requests := mapper.Map(mo)
+		requests := mapper.Map(context.TODO(), mo)
 
 		if tc.ExpectRequest {
 			if len(requests) != 1 {
