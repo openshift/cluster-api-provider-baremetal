@@ -289,6 +289,7 @@ func (c Config) clientConfig() (admissionregv1.WebhookClientConfig, error) {
 	return admissionregv1.WebhookClientConfig{
 		URL: &url,
 	}, nil
+
 }
 
 // sideEffects returns the sideEffects config for a webhook.
@@ -485,7 +486,7 @@ func (g Generator) Generate(ctx *genall.GenerationContext) error {
 	for k, v := range versionedWebhooks {
 		var fileName string
 		if k == defaultWebhookVersion {
-			fileName = "manifests.yaml"
+			fileName = fmt.Sprintf("manifests.yaml")
 		} else {
 			fileName = fmt.Sprintf("manifests.%s.yaml", k)
 		}
