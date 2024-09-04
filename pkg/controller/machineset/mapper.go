@@ -24,39 +24,37 @@ type msmapper struct {
 
 // Map will return reconcile requests for a MachineSet if the event is for a
 // BareMetalHost and that BareMetalHost matches the MachineSet's HostSelector.
-func (m *msmapper) Map(_ context.Context, obj client.Object) []reconcile.Request {
+func (m *msmapper) Map(_ context.Context, host *bmh.BareMetalHost) []reconcile.Request {
 	requests := []reconcile.Request{}
-	if host, ok := obj.(*bmh.BareMetalHost); ok {
-		msets := machinev1beta1.MachineSetList{}
-		err := m.client.List(context.TODO(), &msets, &client.ListOptions{Namespace: host.Namespace})
-		if err != nil {
-			log.Error(err, "failed to list MachineSets")
-			return []reconcile.Request{}
+	msets := machinev1beta1.MachineSetList{}
+	err := m.client.List(context.TODO(), &msets, &client.ListOptions{Namespace: host.Namespace})
+	if err != nil {
+		log.Error(err, "failed to list MachineSets")
+		return []reconcile.Request{}
+	}
+	for _, ms := range msets.Items {
+		annotations := ms.ObjectMeta.GetAnnotations()
+		if annotations == nil {
+			continue
 		}
-		for _, ms := range msets.Items {
-			annotations := ms.ObjectMeta.GetAnnotations()
-			if annotations == nil {
-				continue
-			}
-			_, present := annotations[AutoScaleAnnotation]
-			if !present {
-				continue
-			}
+		_, present := annotations[AutoScaleAnnotation]
+		if !present {
+			continue
+		}
 
-			matches, err := m.hostMatchesMachineSet(host, &ms)
-			if err != nil {
-				nn := fmt.Sprintf("%s/%s", ms.Namespace, ms.Name)
-				log.Error(err, "failed to determine if host matches MachineSet", "MachineSet", nn)
-				continue
-			}
-			if matches {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Name:      ms.Name,
-						Namespace: ms.Namespace,
-					},
-				})
-			}
+		matches, err := m.hostMatchesMachineSet(host, &ms)
+		if err != nil {
+			nn := fmt.Sprintf("%s/%s", ms.Namespace, ms.Name)
+			log.Error(err, "failed to determine if host matches MachineSet", "MachineSet", nn)
+			continue
+		}
+		if matches {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      ms.Name,
+					Namespace: ms.Namespace,
+				},
+			})
 		}
 	}
 	return requests

@@ -27,12 +27,10 @@ import (
 	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestMapper(t *testing.T) {
-	var mo client.Object
 	scheme := runtime.NewScheme()
 	machinev1beta1.AddToScheme(scheme)
 	bmoapis.AddToScheme(scheme)
@@ -90,8 +88,7 @@ func TestMapper(t *testing.T) {
 
 		mapper := msmapper{client: c}
 
-		mo = tc.Host
-		requests := mapper.Map(context.TODO(), mo)
+		requests := mapper.Map(context.TODO(), tc.Host)
 
 		if tc.ExpectRequest {
 			if len(requests) != 1 {

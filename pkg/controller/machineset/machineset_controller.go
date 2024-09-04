@@ -19,6 +19,7 @@ package machineset
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -65,14 +67,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to MachineSet
-	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1beta1.MachineSet{}),
-		&handler.EnqueueRequestForObject{}, predicate.ResourceVersionChangedPredicate{})
+	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1beta1.MachineSet{},
+		&handler.TypedEnqueueRequestForObject[*machinev1beta1.MachineSet]{}, TypedResourceVersionChangedPredicate[*machinev1beta1.MachineSet]{}))
 	if err != nil {
 		return err
 	}
 	mapper := msmapper{client: mgr.GetClient()}
-	err = c.Watch(source.Kind(mgr.GetCache(), &bmh.BareMetalHost{}),
-		handler.EnqueueRequestsFromMapFunc(mapper.Map), predicate.ResourceVersionChangedPredicate{})
+	err = c.Watch(source.Kind(mgr.GetCache(), &bmh.BareMetalHost{},
+		handler.TypedEnqueueRequestsFromMapFunc(mapper.Map), TypedResourceVersionChangedPredicate[*bmh.BareMetalHost]{}))
 	if err != nil {
 		return err
 	}
@@ -203,4 +205,41 @@ func (r *ReconcileMachineSet) hostMatches(ctx context.Context, hostselector labe
 		return false, err
 	}
 	return msselector.Matches(labels.Set(machine.ObjectMeta.Labels)), nil
+}
+
+// Bring in the TypedResourceVersionChangedPredicate from controller-runtime 0.19.0
+// This  avoids bumping MAO and all of it's operands to the same version.
+
+// ResourceVersionChangedPredicate implements a default update predicate function on resource version change.
+type ResourceVersionChangedPredicate = TypedResourceVersionChangedPredicate[client.Object]
+
+// TypedResourceVersionChangedPredicate implements a default update predicate function on resource version change.
+type TypedResourceVersionChangedPredicate[T metav1.Object] struct {
+	predicate.TypedFuncs[T]
+}
+
+// Update implements default UpdateEvent filter for validating resource version change.
+func (TypedResourceVersionChangedPredicate[T]) Update(e event.TypedUpdateEvent[T]) bool {
+	if isNil(e.ObjectOld) {
+		log.Error(nil, "Update event has no old object to update", "event", e)
+		return false
+	}
+	if isNil(e.ObjectNew) {
+		log.Error(nil, "Update event has no new object to update", "event", e)
+		return false
+	}
+
+	return e.ObjectNew.GetResourceVersion() != e.ObjectOld.GetResourceVersion()
+}
+
+func isNil(arg any) bool {
+	if v := reflect.ValueOf(arg); !v.IsValid() || ((v.Kind() == reflect.Ptr ||
+		v.Kind() == reflect.Interface ||
+		v.Kind() == reflect.Slice ||
+		v.Kind() == reflect.Map ||
+		v.Kind() == reflect.Chan ||
+		v.Kind() == reflect.Func) && v.IsNil()) {
+		return true
+	}
+	return false
 }

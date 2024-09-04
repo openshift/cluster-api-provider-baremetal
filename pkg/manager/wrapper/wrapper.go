@@ -44,13 +44,13 @@ func (m *managerWrapper) Add(r manager.Runnable) error {
 		return fmt.Errorf("Controller was nil")
 	}
 
-	err = c.Watch(source.Kind(m.GetCache(), &bmh.BareMetalHost{}), handler.EnqueueRequestsFromMapFunc(bmhMap))
+	err = c.Watch(source.Kind(m.GetCache(), &bmh.BareMetalHost{}, handler.TypedEnqueueRequestsFromMapFunc[*bmh.BareMetalHost](bmhMap)))
 	if err != nil {
 		log.Printf("Error watching BareMetalHosts: %s", err.Error())
 		return err
 	}
 
-	err = c.Watch(source.Kind(m.GetCache(), &corev1.Node{}), handler.EnqueueRequestsFromMapFunc(nodeMap))
+	err = c.Watch(source.Kind(m.GetCache(), &corev1.Node{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Node](nodeMap)))
 	if err != nil {
 		log.Printf("Error watching Nodes: %s", err.Error())
 		return err
