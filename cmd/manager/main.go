@@ -20,10 +20,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	bmoapis "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	capm3apis "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
+	apifeatures "github.com/openshift/api/features"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/apis"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/baremetal"
@@ -31,10 +33,13 @@ import (
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller/metal3remediation"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/manager/wrapper"
+	"github.com/openshift/library-go/pkg/features"
 	maomachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -111,6 +116,16 @@ func main() {
 	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
 		"Webhook cert dir, only used when webhook-enabled is true.")
 
+	// Sets up feature gates
+	defaultMutableGate := feature.DefaultMutableFeatureGate
+	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration)
+	if err != nil {
+		klog.Fatalf("Error setting up feature gates: %v", err)
+	}
+
+	// Add the --feature-gates flag
+	gateOpts.AddFlagsToGoFlagSet(nil)
+
 	flag.Parse()
 
 	log := logf.Log.WithName("baremetal-controller-manager")
@@ -122,7 +137,7 @@ func main() {
 		panic(fmt.Errorf("GetConfigOrDie didn't die"))
 	}
 
-	err := waitForAPIs(cfg)
+	err = waitForAPIs(cfg)
 	if err != nil {
 		entryLog.Error(err, "unable to discover required APIs")
 		os.Exit(1)
@@ -135,6 +150,18 @@ func main() {
 		}
 		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", *watchNamespace)
 	}
+
+	// Sets feature gates from flags
+	klog.Infof("Initializing feature gates: %s", strings.Join(defaultMutableGate.KnownFeatures(), ", "))
+	warnings, err := gateOpts.ApplyTo(defaultMutableGate)
+	if err != nil {
+		klog.Fatalf("Error setting feature gates from flags: %v", err)
+	}
+	if len(warnings) > 0 {
+		klog.Infof("Warnings setting feature gates from flags: %v", warnings)
+	}
+
+	klog.Infof("FeatureGateMachineAPIMigration initialised: %t", defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateMachineAPIMigration)))
 
 	// Setup a Manager
 	opts := manager.Options{
@@ -189,7 +216,7 @@ func main() {
 	}
 
 	// the manager wrapper will add an extra Watch to the controller
-	maomachine.AddWithActuator(wrapper.New(mgr), machineActuator)
+	maomachine.AddWithActuator(wrapper.New(mgr), machineActuator, defaultMutableGate)
 
 	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "Failed to add controller to manager")
