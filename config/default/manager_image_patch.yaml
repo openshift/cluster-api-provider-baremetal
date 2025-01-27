@@ -7,5 +7,5 @@ spec:
   template:
     spec:
       containers:
-      - image: quay.io/openshift/cluster-api-provider-baremetal:master
+      - image: quay.io/openshift/cluster-api-provider-baremetal:main
         name: manager
