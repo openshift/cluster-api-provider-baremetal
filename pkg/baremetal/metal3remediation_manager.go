@@ -148,7 +148,7 @@ func (r *RemediationManager) SetPowerOffAnnotation(ctx context.Context) error {
 		return err
 	}
 	if host == nil {
-		return errors.New("Unable to set a PowerOff Annotation, Host not found")
+		return errors.New("Test Unable to set a PowerOff Annotation, Host not found")
 	}
 
 	r.Log.Info("Adding PowerOff annotation to host", "host", host.Name)
