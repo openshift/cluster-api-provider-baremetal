@@ -12,6 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc"
+	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var (
@@ -33,6 +36,8 @@ func (host *BareMetalHost) validateHost() []error {
 			errs = append(errs, err)
 		}
 	}
+
+	errs = append(errs, host.validateCrossNamespaceSecretReferences()...)
 
 	if raidErrors := validateRAID(host.Spec.RAID); raidErrors != nil {
 		errs = append(errs, raidErrors...)
@@ -60,6 +65,10 @@ func (host *BareMetalHost) validateHost() []error {
 
 	if annotationErrors := validateAnnotations(host); annotationErrors != nil {
 		errs = append(errs, annotationErrors...)
+	}
+
+	if err := validatePowerStatus(host); err != nil {
+		errs = append(errs, err)
 	}
 
 	return errs
@@ -307,5 +316,48 @@ func validateRebootAnnotation(rebootAnnotation string) error {
 		return fmt.Errorf("invalid mode in the %s annotation, allowed are %v", RebootAnnotationPrefix, supportedRebootModesString)
 	}
 
+	return nil
+}
+
+// validateCrossNamespaceSecretReferences validates that a SecretReference does not refer to a Secret
+// in a different namespace than the host resource.
+func validateCrossNamespaceSecretReferences(hostNamespace, hostName, fieldName string, ref *corev1.SecretReference) error {
+	if ref != nil &&
+		ref.Namespace != "" &&
+		ref.Namespace != hostNamespace {
+		return k8serrors.NewForbidden(
+			schema.GroupResource{
+				Group:    "metal3.io",
+				Resource: "baremetalhosts",
+			},
+			hostName,
+			fmt.Errorf("%s: cross-namespace Secret references are not allowed", fieldName),
+		)
+	}
+	return nil
+}
+
+// validateCrossNamespaceSecretReferences checks all Secret references in the BareMetalHost spec
+// to ensure they do not reference Secrets from other namespaces. This includes userData,
+// networkData, and metaData Secret references.
+func (host *BareMetalHost) validateCrossNamespaceSecretReferences() []error {
+	secretRefs := map[*corev1.SecretReference]string{
+		host.Spec.UserData:    "userData",
+		host.Spec.NetworkData: "networkData",
+		host.Spec.MetaData:    "metaData",
+	}
+	errs := []error{}
+	for ref, fieldName := range secretRefs {
+		if err := validateCrossNamespaceSecretReferences(host.Namespace, host.Name, fieldName, ref); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs
+}
+
+func validatePowerStatus(host *BareMetalHost) error {
+	if host.Spec.DisablePowerOff && !host.Spec.Online {
+		return fmt.Errorf("node can't simultaneously have online set to false and have power off disabled")
+	}
 	return nil
 }
