@@ -184,12 +184,12 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1beta1.Machine) 
 		return a.releaseHost(ctx, host, machine)
 	}
 
-	if host.Spec.Image != nil || host.Spec.Online ||
+	if host.Spec.Image != nil ||
 		host.Spec.UserData != nil || host.Spec.CustomDeploy != nil {
 		log.Printf("starting to deprovision host %v", host.Name)
 		host.Spec.Image = nil
 		host.Spec.CustomDeploy = nil
-		host.Spec.Online = false
+		host.Spec.Online = host.Spec.DisablePowerOff
 		host.Spec.UserData = nil
 		err = a.client.Update(ctx, host)
 		if err != nil && !errors.IsNotFound(err) {
