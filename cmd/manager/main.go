@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
@@ -25,8 +26,10 @@ import (
 
 	bmoapis "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	capm3apis "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
+	osconfigv1 "github.com/openshift/api/config/v1"
 	apifeatures "github.com/openshift/api/features"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	utiltls "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/apis"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/baremetal"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/cloud/baremetal/actuators/machine"
@@ -117,6 +120,12 @@ func main() {
 	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
 		"Webhook cert dir, only used when webhook-enabled is true.")
 
+	tlsCipherSuites := flag.String("tls-cipher-suites", "",
+		"Comma-separated list of TLS cipher suites.")
+
+	tlsMinVersion := flag.String("tls-min-version", "",
+		"Minimum TLS version supported.")
+
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
 	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration)
@@ -181,9 +190,19 @@ func main() {
 	}
 
 	if *webhookEnabled {
+		tlsProfile := osconfigv1.TLSProfileSpec{
+			MinTLSVersion: osconfigv1.TLSProtocolVersion(*tlsMinVersion),
+		}
+		if *tlsCipherSuites != "" {
+			tlsProfile.Ciphers = strings.Split(*tlsCipherSuites, ",")
+		}
+
+		tlsOpts, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
+
 		opts.WebhookServer = webhook.NewServer(webhook.Options{
 			Port:    *webhookPort,
 			CertDir: *webhookCertdir,
+			TLSOpts: []func(*tls.Config){tlsOpts},
 		})
 	}
 

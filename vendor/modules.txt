@@ -797,10 +797,14 @@ github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1
 github.com/openshift/client-go/machine/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/machine/informers/externalversions/machine/v1beta1
 github.com/openshift/client-go/machine/listers/machine/v1beta1
+# github.com/openshift/controller-runtime-common v0.0.0-20260213175913-767fef058eca
+## explicit; go 1.24.0
+github.com/openshift/controller-runtime-common/pkg/tls
 # github.com/openshift/library-go v0.0.0-20260213153706-03f1709971c5
 ## explicit; go 1.24.0
 github.com/openshift/library-go/pkg/config/clusterstatus
 github.com/openshift/library-go/pkg/config/leaderelection
+github.com/openshift/library-go/pkg/crypto
 github.com/openshift/library-go/pkg/features
 # github.com/openshift/machine-api-operator v0.2.1-0.20260116124544-4610a83ed692
 ## explicit; go 1.24.0
@@ -1639,6 +1643,7 @@ k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/apiserver v0.34.4
 ## explicit; go 1.24.0
+k8s.io/apiserver/pkg/authentication/user
 k8s.io/apiserver/pkg/util/feature
 # k8s.io/cli-runtime v0.34.1
 ## explicit; go 1.24.0

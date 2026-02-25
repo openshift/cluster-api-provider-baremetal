@@ -435,6 +435,8 @@ github.com/openshift/cluster-api-provider-metal3/api v0.0.0-20260224111825-067df
 github.com/openshift/cluster-api-provider-metal3/api v0.0.0-20260224111825-067dfe94d437/go.mod h1:GaU5jdW+Y+/m/0YsWvqs7MdqIpzOdvfl1J5sOUfZB/E=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957 h1:eVnkMTFnirnoUOlAUT3Hy8WriIi1JoSrilWym3Dl8Q4=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957/go.mod h1:TBlORAAtNZ/Tl86pO7GjNXKsH/g0QAW5GnvYstdOhYI=
+github.com/openshift/controller-runtime-common v0.0.0-20260213175913-767fef058eca h1:EOc/lbyZxtn1b/BvRwnLpbgBg0F+2RUQd3xMiA4/JsQ=
+github.com/openshift/controller-runtime-common v0.0.0-20260213175913-767fef058eca/go.mod h1:59nLF3/IfhAtoQZfUzlCyidTAdlVT6KiVeTicUi2wuA=
 github.com/openshift/library-go v0.0.0-20260213153706-03f1709971c5 h1:9Pe6iVOMjt9CdA/vaKBNUSoEIjIe1po5Ha3ABRYXLJI=
 github.com/openshift/library-go v0.0.0-20260213153706-03f1709971c5/go.mod h1:K3FoNLgNBFYbFuG+Kr8usAnQxj1w84XogyUp2M8rK8k=
 github.com/openshift/machine-api-operator v0.2.1-0.20260116124544-4610a83ed692 h1:ljYMFQh6f/Tljkd6HB9hYqGA7M275K+cxdwJy6XXtFU=
