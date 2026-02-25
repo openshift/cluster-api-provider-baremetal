@@ -3,7 +3,7 @@ WORKDIR /go/src/github.com/openshift/cluster-api-provider-baremetal
 COPY . .
 RUN go build --mod=vendor -o machine-controller-manager ./cmd/manager
 
-FROM registry.ci.openshift.org/ocp/4.22:base-rhel9
+FROM registry.ci.openshift.org/ocp/4.22:base-rhel9-minimal
 #RUN INSTALL_PKGS=" \
 #      libvirt-libs openssh-clients genisoimage \
 #      " && \
