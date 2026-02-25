@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"slices"
+
 	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	bmoapis "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
-	"github.com/metal3-io/baremetal-operator/pkg/utils"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
 	machineapierrors "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -1429,7 +1430,7 @@ func TestDelete(t *testing.T) {
 		}
 
 		t.Logf("host finalizers %v", host.Finalizers)
-		haveFinalizer := utils.StringInList(host.Finalizers, machinev1beta1.MachineFinalizer)
+		haveFinalizer := slices.Contains(host.Finalizers, machinev1beta1.MachineFinalizer)
 		if tc.ExpectHostFinalizer && !haveFinalizer {
 			t.Errorf("%s: expected host to have finalizer and it does not %v",
 				tc.CaseName, host.Finalizers)

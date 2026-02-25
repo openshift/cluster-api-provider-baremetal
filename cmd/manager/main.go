@@ -33,6 +33,7 @@ import (
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller/metal3remediation"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/manager/wrapper"
+	capbmwebhook "github.com/openshift/cluster-api-provider-baremetal/pkg/webhook"
 	"github.com/openshift/library-go/pkg/features"
 	maomachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -236,12 +237,12 @@ func main() {
 	}
 
 	if *webhookEnabled {
-		if err := (&capm3apis.Metal3Remediation{}).SetupWebhookWithManager(mgr); err != nil {
+		if err := (&capbmwebhook.Metal3Remediation{}).SetupWebhookWithManager(mgr); err != nil {
 			log.Error(err, "unable to create webhook", "webhook", "Metal3Remediation")
 			os.Exit(1)
 		}
 
-		if err := (&capm3apis.Metal3RemediationTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+		if err := (&capbmwebhook.Metal3RemediationTemplate{}).SetupWebhookWithManager(mgr); err != nil {
 			log.Error(err, "unable to create webhook", "webhook", "Metal3RemediationTemplate")
 			os.Exit(1)
 		}

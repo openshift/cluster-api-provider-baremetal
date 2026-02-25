@@ -16,6 +16,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -64,7 +67,20 @@ const (
 	// InspectAnnotationValueDisabled is a constant string="disabled"
 	// This is particularly useful to check if inspect annotation is disabled
 	// inspect.metal3.io=disabled.
+	//
+	// Deprecated: use InspectionMode instead.
 	InspectAnnotationValueDisabled = "disabled"
+)
+
+// InspectionMode represents the mode of host inspection.
+type InspectionMode string
+
+const (
+	// InspectionModeDisabled disables host inspection.
+	InspectionModeDisabled InspectionMode = "disabled"
+
+	// InspectionModeAgent runs standard agent-based inspection.
+	InspectionModeAgent InspectionMode = "agent"
 )
 
 // RootDeviceHints holds the hints for specifying the storage location
@@ -455,8 +471,16 @@ type BareMetalHostSpec struct {
 	// ExternallyProvisioned means something else has provisioned the
 	// image running on the host, and the operator should only manage
 	// the power status. This field is used for integration with already
-	// provisioned hosts and when pivoting hosts between clusters. If
-	// unsure, leave this field as false.
+	// provisioned hosts and when pivoting hosts between clusters.
+	//
+	// This field can be set to true either:
+	// 1. During initial host creation (e.g., for pre-provisioned hosts)
+	// 2. After inspection completes when the host reaches Available state
+	//
+	// When used in environments with Cluster API Provider Metal3 (CAPM3),
+	// ensure hosts are labeled appropriately so CAPM3's host selector can
+	// distinguish them from CAPM3-managed hosts. If unsure, leave this
+	// field as false.
 	ExternallyProvisioned bool `json:"externallyProvisioned,omitempty"`
 
 	// When set to disabled, automated cleaning will be skipped
@@ -482,6 +506,13 @@ type BareMetalHostSpec struct {
 	// instead, a reboot will be used in place of power on/off
 	// +optional
 	DisablePowerOff bool `json:"disablePowerOff,omitempty"`
+
+	// Specifies the mode for host inspection.
+	// "disabled" - no inspection will be performed
+	// "agent" - normal agent-based inspection will run
+	// +optional
+	// +kubebuilder:validation:Enum=disabled;agent
+	InspectionMode InspectionMode `json:"inspectionMode,omitempty"`
 }
 
 // AutomatedCleaningMode is the interface to enable/disable automated cleaning
@@ -519,7 +550,7 @@ type Image struct {
 	URL string `json:"url"`
 
 	// Checksum is the checksum for the image. Required for all formats
-	// except for "live-iso".
+	// except for "live-iso" and OCI images (oci://).
 	Checksum string `json:"checksum,omitempty"`
 
 	// ChecksumType is the checksum algorithm for the image, e.g md5, sha256 or sha512.
@@ -538,194 +569,16 @@ func (image *Image) IsLiveISO() bool {
 	return image != nil && image.DiskFormat != nil && *image.DiskFormat == "live-iso"
 }
 
+func (image *Image) IsOCI() bool {
+	return image != nil && strings.HasPrefix(image.URL, "oci://")
+}
+
 // Custom deploy is a description of a customized deploy process.
 type CustomDeploy struct {
 	// Custom deploy method name.
 	// This name is specific to the deploy ramdisk used. If you don't have
 	// a custom deploy ramdisk, you shouldn't use CustomDeploy.
 	Method string `json:"method"`
-}
-
-// FIXME(dhellmann): We probably want some other module to own these
-// data structures.
-
-// ClockSpeed is a clock speed in MHz
-// +kubebuilder:validation:Format=double
-type ClockSpeed float64
-
-// ClockSpeed multipliers.
-const (
-	MegaHertz ClockSpeed = 1.0
-	GigaHertz            = 1000 * MegaHertz
-)
-
-// Capacity is a disk size in Bytes.
-type Capacity int64
-
-// Capacity multipliers.
-const (
-	Byte     Capacity = 1
-	KibiByte          = Byte * 1024
-	KiloByte          = Byte * 1000
-	MebiByte          = KibiByte * 1024
-	MegaByte          = KiloByte * 1000
-	GibiByte          = MebiByte * 1024
-	GigaByte          = MegaByte * 1000
-	TebiByte          = GibiByte * 1024
-	TeraByte          = GigaByte * 1000
-)
-
-// DiskType is a disk type, i.e. HDD, SSD, NVME.
-type DiskType string
-
-// DiskType constants.
-const (
-	HDD  DiskType = "HDD"
-	SSD  DiskType = "SSD"
-	NVME DiskType = "NVME"
-)
-
-// CPU describes one processor on the host.
-type CPU struct {
-	Arch           string     `json:"arch,omitempty"`
-	Model          string     `json:"model,omitempty"`
-	ClockMegahertz ClockSpeed `json:"clockMegahertz,omitempty"`
-	Flags          []string   `json:"flags,omitempty"`
-	Count          int        `json:"count,omitempty"`
-}
-
-// Storage describes one storage device (disk, SSD, etc.) on the host.
-type Storage struct {
-	// A Linux device name of the disk, e.g.
-	// "/dev/disk/by-path/pci-0000:01:00.0-scsi-0:2:0:0". This will be a name
-	// that is stable across reboots if one is available.
-	Name string `json:"name,omitempty"`
-
-	// A list of alternate Linux device names of the disk, e.g. "/dev/sda".
-	// Note that this list is not exhaustive, and names may not be stable
-	// across reboots.
-	AlternateNames []string `json:"alternateNames,omitempty"`
-
-	// Whether this disk represents rotational storage.
-	// This field is not recommended for usage, please
-	// prefer using 'Type' field instead, this field
-	// will be deprecated eventually.
-	Rotational bool `json:"rotational,omitempty"`
-
-	// Device type, one of: HDD, SSD, NVME.
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Enum=HDD;SSD;NVME;
-	Type DiskType `json:"type,omitempty"`
-
-	// The size of the disk in Bytes
-	SizeBytes Capacity `json:"sizeBytes,omitempty"`
-
-	// The name of the vendor of the device
-	Vendor string `json:"vendor,omitempty"`
-
-	// Hardware model
-	Model string `json:"model,omitempty"`
-
-	// The serial number of the device
-	SerialNumber string `json:"serialNumber,omitempty"`
-
-	// The WWN of the device
-	WWN string `json:"wwn,omitempty"`
-
-	// The WWN Vendor extension of the device
-	WWNVendorExtension string `json:"wwnVendorExtension,omitempty"`
-
-	// The WWN with the extension
-	WWNWithExtension string `json:"wwnWithExtension,omitempty"`
-
-	// The SCSI location of the device
-	HCTL string `json:"hctl,omitempty"`
-}
-
-// VLANID is a 12-bit 802.1Q VLAN identifier
-// +kubebuilder:validation:Type=integer
-// +kubebuilder:validation:Minimum=0
-// +kubebuilder:validation:Maximum=4094
-type VLANID int32
-
-// VLAN represents the name and ID of a VLAN.
-type VLAN struct {
-	ID VLANID `json:"id,omitempty"`
-
-	Name string `json:"name,omitempty"`
-}
-
-// NIC describes one network interface on the host.
-type NIC struct {
-	// The name of the network interface, e.g. "en0"
-	Name string `json:"name,omitempty"`
-
-	// The vendor and product IDs of the NIC, e.g. "0x8086 0x1572"
-	Model string `json:"model,omitempty"`
-
-	// The device MAC address
-	// +kubebuilder:validation:Pattern=`[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}`
-	MAC string `json:"mac,omitempty"`
-
-	// The IP address of the interface. This will be an IPv4 or IPv6 address
-	// if one is present.  If both IPv4 and IPv6 addresses are present in a
-	// dual-stack environment, two nics will be output, one with each IP.
-	IP string `json:"ip,omitempty"`
-
-	// The speed of the device in Gigabits per second
-	SpeedGbps int `json:"speedGbps,omitempty"`
-
-	// The VLANs available
-	VLANs []VLAN `json:"vlans,omitempty"`
-
-	// The untagged VLAN ID
-	VLANID VLANID `json:"vlanId,omitempty"`
-
-	// Whether the NIC is PXE Bootable
-	PXE bool `json:"pxe,omitempty"`
-}
-
-// Firmware describes the firmware on the host.
-type Firmware struct {
-	// The BIOS for this firmware
-	BIOS BIOS `json:"bios,omitempty"`
-}
-
-// BIOS describes the BIOS version on the host.
-type BIOS struct {
-	// The release/build date for this BIOS
-	Date string `json:"date,omitempty"`
-
-	// The vendor name for this BIOS
-	Vendor string `json:"vendor,omitempty"`
-
-	// The version of the BIOS
-	Version string `json:"version,omitempty"`
-}
-
-// HardwareDetails collects all of the information about hardware
-// discovered on the host.
-type HardwareDetails struct {
-	// System vendor information.
-	SystemVendor HardwareSystemVendor `json:"systemVendor,omitempty"`
-	// System firmware information.
-	Firmware Firmware `json:"firmware,omitempty"`
-	// The host's amount of memory in Mebibytes.
-	RAMMebibytes int `json:"ramMebibytes,omitempty"`
-	// List of network interfaces for the host.
-	NIC []NIC `json:"nics,omitempty"`
-	// List of storage (disk, SSD, etc.) available to the host.
-	Storage []Storage `json:"storage,omitempty"`
-	// Details of the CPU(s) in the system.
-	CPU      CPU    `json:"cpu,omitempty"`
-	Hostname string `json:"hostname,omitempty"`
-}
-
-// HardwareSystemVendor stores details about the whole hardware system.
-type HardwareSystemVendor struct {
-	Manufacturer string `json:"manufacturer,omitempty"`
-	ProductName  string `json:"productName,omitempty"`
-	SerialNumber string `json:"serialNumber,omitempty"`
 }
 
 // CredentialsStatus contains the reference and version of the last
@@ -866,6 +719,7 @@ type ProvisionStatus struct {
 
 	// The hosts's ID from the underlying provisioning tool (e.g. the
 	// Ironic node UUID).
+	//nolint:tagliatelle
 	ID string `json:"ID"`
 
 	// Image holds the details of the last image successfully
@@ -911,8 +765,6 @@ type BareMetalHost struct {
 }
 
 // BootMode returns the boot method to use for the host.
-//
-//nolint:stylecheck
 func (host *BareMetalHost) BootMode() BootMode {
 	mode := host.Spec.BootMode
 	if mode == "" {
@@ -971,6 +823,19 @@ func (host *BareMetalHost) CredentialsKey() types.NamespacedName {
 	}
 }
 
+// InspectionDisabled returns true if inspection is disabled via either
+// the inspect.metal3.io annotation or the inspectionMode field.
+func (host *BareMetalHost) InspectionDisabled() bool {
+	// Check the new InspectionMode field first
+	if host.Spec.InspectionMode == InspectionModeDisabled {
+		return true
+	}
+
+	// Fall back to the legacy annotation for backward compatibility
+	annotations := host.GetAnnotations()
+	return annotations[InspectAnnotationPrefix] == InspectAnnotationValueDisabled
+}
+
 // NeedsHardwareInspection looks at the state of the host to determine
 // if hardware inspection should be run.
 func (host *BareMetalHost) NeedsHardwareInspection() bool {
@@ -984,6 +849,11 @@ func (host *BareMetalHost) NeedsHardwareInspection() bool {
 		// this host, because we don't want to reboot it.
 		return false
 	}
+	if host.InspectionDisabled() {
+		// Never perform inspection if it's explicitly disabled
+		return false
+	}
+	// FIXME(dtantsur): the HardwareDetails field is deprecated.
 	return host.Status.HardwareDetails == nil
 }
 
@@ -1113,25 +983,32 @@ func (host *BareMetalHost) OperationMetricForState(operation ProvisioningState) 
 		metric = &history.Provision
 	case StateDeprovisioning:
 		metric = &history.Deprovision
+	default:
 	}
 	return
 }
 
+var supportedChecksums = strings.Join([]string{string(AutoChecksum), string(MD5), string(SHA256), string(SHA512)}, ", ")
+
 // GetChecksum method returns the checksum of an image.
-func (image *Image) GetChecksum() (checksum, checksumType string, ok bool) {
+func (image *Image) GetChecksum() (checksum, checksumType string, err error) {
 	if image == nil {
-		return "", "", false
+		return "", "", errors.New("image is not provided")
 	}
 
 	if image.DiskFormat != nil && *image.DiskFormat == "live-iso" {
 		// Checksum is not required for live-iso
-		ok = true
-		return "", "", ok
+		return "", "", nil
+	}
+
+	// Checksum is not required for OCI images as they have embedded checksums
+	if image.IsOCI() && image.Checksum == "" {
+		return "", "", nil
 	}
 
 	if image.Checksum == "" {
 		// Return empty if checksum is not provided
-		return "", "", false
+		return "", "", errors.New("checksum is required for normal images")
 	}
 
 	switch image.ChecksumType {
@@ -1140,12 +1017,11 @@ func (image *Image) GetChecksum() (checksum, checksumType string, ok bool) {
 	case "", AutoChecksum:
 		// No type, let Ironic detect
 	default:
-		return "", "", false
+		return "", "", fmt.Errorf("unknown checksumType %s, supported are %s", image.ChecksumType, supportedChecksums)
 	}
 
 	checksum = image.Checksum
-	ok = true
-	return checksum, checksumType, ok
+	return checksum, checksumType, nil
 }
 
 // +kubebuilder:object:root=true

@@ -9,6 +9,8 @@ Have a question? See our [Frequently Asked Questions](FAQ.md) for common inquiri
 
 ## Architecture
 
+The Machine API Operator (MAO) deploys and manages platform-specific machine controllers. The core machine lifecycle logic (`pkg/controller/machine/`) is imported by external provider repositories (`machine-api-provider-*`), which implement their own actuators, embed them into a controller-manager, and build container images. MAO then deploys these images via the machine-controllers Deployment. The VSphere provider is an exception, its actuator lives directly in this repo (`pkg/controller/vsphere/`).
+
 ![Machine API Operator overview](machine-api-operator.png)
 
 ## CRDs
@@ -38,8 +40,6 @@ Have a question? See our [Frequently Asked Questions](FAQ.md) for common inquiri
   - [cluster-api-provider-openstack](https://github.com/openshift/cluster-api-provider-openstack)
 
   - [cluster-api-provider-baremetal](https://github.com/openshift/cluster-api-provider-baremetal)
-
-  - [cluster-api-provider-ovirt](https://github.com/openshift/cluster-api-provider-ovirt)
   
   - [cluster-api-provider-ibmcloud](https://github.com/openshift/cluster-api-provider-ibmcloud)
 

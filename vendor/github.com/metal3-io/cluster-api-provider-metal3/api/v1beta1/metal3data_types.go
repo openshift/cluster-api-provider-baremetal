@@ -35,7 +35,9 @@ type Metal3DataSpec struct {
 
 	// TemplateReference refers to the Template the Metal3MachineTemplate refers to.
 	// It can be matched against the key or it may also point to the name of the template
-	// Metal3Data refers to
+	// Metal3Data refers to.
+	//
+	// Deprecated: This field is deprecated and will be removed in a future release.
 	// +optional
 	TemplateReference string `json:"templateReference,omitempty"`
 
@@ -67,7 +69,7 @@ type Metal3DataStatus struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:path=metal3datas,scope=Namespaced,categories=cluster-api,shortName=m3d;m3data;m3datas;metal3d;metal3data
-// +kubebuilder:storageversion
+// +kubebuilder:deprecatedversion
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Metal3Data"
