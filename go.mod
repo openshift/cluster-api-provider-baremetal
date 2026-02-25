@@ -11,6 +11,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift/api v0.0.0-20260213155647-8fe9fe363807
+	github.com/openshift/controller-runtime-common v0.0.0-20260213175913-767fef058eca
 	github.com/openshift/library-go v0.0.0-20260213153706-03f1709971c5
 	github.com/openshift/machine-api-operator v0.2.1-0.20260116124544-4610a83ed692
 	github.com/pkg/errors v0.9.1
