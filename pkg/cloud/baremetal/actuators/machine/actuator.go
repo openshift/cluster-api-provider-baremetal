@@ -25,8 +25,9 @@ import (
 	"strings"
 	"time"
 
+	"slices"
+
 	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
-	"github.com/metal3-io/baremetal-operator/pkg/utils"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	bmv1alpha1 "github.com/openshift/cluster-api-provider-baremetal/pkg/apis/baremetal/v1alpha1"
 	machineapierrors "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -619,10 +620,11 @@ func (a *Actuator) releaseHost(ctx context.Context, host *bmh.BareMetalHost, mac
 	}
 	// We don't add a finalizer any more, but remove it if present in case it was
 	// added by a previous version of the actuator.
-	if utils.StringInList(host.Finalizers, machinev1beta1.MachineFinalizer) {
+	if slices.Contains(host.Finalizers, machinev1beta1.MachineFinalizer) {
 		log.Printf("clearing machine finalizer for host %v", host.Name)
-		host.Finalizers = utils.FilterStringFromList(
-			host.Finalizers, machinev1beta1.MachineFinalizer)
+		host.Finalizers = slices.DeleteFunc(host.Finalizers, func(s string) bool {
+			return s == machinev1beta1.MachineFinalizer
+		})
 		dirty = true
 	}
 	if !dirty {
@@ -749,8 +751,10 @@ func (a *Actuator) removeNodeFinalizer(ctx context.Context, machine *machinev1be
 		return err
 	}
 
-	if utils.StringInList(node.Finalizers, nodeFinalizer) {
-		node.Finalizers = utils.FilterStringFromList(node.Finalizers, nodeFinalizer)
+	if slices.Contains(node.Finalizers, nodeFinalizer) {
+		node.Finalizers = slices.DeleteFunc(node.Finalizers, func(s string) bool {
+			return s == nodeFinalizer
+		})
 		if err := a.client.Update(ctx, node); err != nil {
 			log.Printf("Failed to remove Node finalizer from %s, error: %s", node.Name, err.Error())
 			return err
