@@ -32,13 +32,16 @@ var (
 	// GroupVersion is group version used to register these objects.
 	GroupVersion = schema.GroupVersion{Group: "infrastructure.cluster.x-k8s.io", Version: "v1beta1"}
 
-	/// schemeBuilder is used to add go types to the GroupVersionKind scheme.
+	// schemeBuilder is used to add go types to the GroupVersionKind scheme.
 	schemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = schemeBuilder.AddToScheme
 
 	objectTypes = []runtime.Object{}
+
+	// localSchemeBuilder is used for type conversions.
+	localSchemeBuilder = &schemeBuilder
 )
 
 func addKnownTypes(scheme *runtime.Scheme) error {
