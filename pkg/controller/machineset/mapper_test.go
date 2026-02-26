@@ -93,23 +93,23 @@ func TestMapper(t *testing.T) {
 		if tc.ExpectRequest {
 			if len(requests) != 1 {
 				t.Logf("expected 1 request, got %d", len(requests))
-				t.Logf(tc.FailMessage)
+				t.Log(tc.FailMessage)
 				t.FailNow()
 			}
 			req := requests[0]
 			if req.NamespacedName.Name != ms.Name {
 				t.Logf("expected Name %s, got %s", req.NamespacedName.Name, ms.Name)
-				t.Logf(tc.FailMessage)
+				t.Log(tc.FailMessage)
 				t.FailNow()
 			}
 			if req.NamespacedName.Namespace != ms.Namespace {
 				t.Logf("expected NameSpace %s, got %s", req.NamespacedName.Namespace, ms.Namespace)
-				t.Logf(tc.FailMessage)
+				t.Log(tc.FailMessage)
 				t.FailNow()
 			}
 		} else if len(requests) != 0 {
 			t.Logf("expected 0 requests, got %d", len(requests))
-			t.Logf(tc.FailMessage)
+			t.Log(tc.FailMessage)
 			t.FailNow()
 		}
 	}

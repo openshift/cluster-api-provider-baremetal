@@ -641,13 +641,19 @@ func TestExists(t *testing.T) {
 	scheme := runtime.NewScheme()
 	bmoapis.AddToScheme(scheme)
 
+	const machineName = "somemachine"
 	host := bmh.BareMetalHost{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "somehost",
 			Namespace: "myns",
 		},
 		Spec: bmh.BareMetalHostSpec{
-			ConsumerRef: &corev1.ObjectReference{},
+			ConsumerRef: &corev1.ObjectReference{
+				Name:       machineName,
+				Namespace:  "myns",
+				Kind:       "Machine",
+				APIVersion: machinev1beta1.SchemeGroupVersion.String(),
+			},
 		},
 		Status: bmh.BareMetalHostStatus{
 			Provisioning: bmh.ProvisionStatus{
@@ -667,6 +673,8 @@ func TestExists(t *testing.T) {
 			Client: c,
 			Machine: machinev1beta1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
+					Name:      machineName,
+					Namespace: "myns",
 					Annotations: map[string]string{
 						HostAnnotation: "myns/somehost",
 					},
@@ -679,6 +687,8 @@ func TestExists(t *testing.T) {
 			Client: c,
 			Machine: machinev1beta1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
+					Name:      machineName,
+					Namespace: "myns",
 					Annotations: map[string]string{
 						HostAnnotation: "myns/wrong",
 					},
