@@ -209,7 +209,7 @@ func TestHostMatches(t *testing.T) {
 			t.Errorf("%v", err)
 		}
 		if result != tc.ExpectMatch {
-			t.Logf(tc.ExpectMessage)
+			t.Log(tc.ExpectMessage)
 			t.FailNow()
 		}
 	}

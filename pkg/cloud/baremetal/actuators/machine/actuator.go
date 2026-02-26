@@ -539,10 +539,10 @@ func consumerRefMatches(consumer *corev1.ObjectReference, machine *machinev1beta
 	if consumer.Namespace != machine.Namespace {
 		return false
 	}
-	if consumer.Kind != machine.Kind {
+	if consumer.Kind != "Machine" {
 		return false
 	}
-	if consumer.APIVersion != machine.APIVersion {
+	if consumer.APIVersion != machinev1beta1.SchemeGroupVersion.String() {
 		return false
 	}
 	return true
@@ -585,7 +585,7 @@ func (a *Actuator) provisionHost(ctx context.Context, host *bmh.BareMetalHost,
 		Kind:       "Machine",
 		Name:       machine.Name,
 		Namespace:  machine.Namespace,
-		APIVersion: machine.APIVersion,
+		APIVersion: machinev1beta1.SchemeGroupVersion.String(),
 	}
 
 	host.Spec.Online = true
@@ -612,7 +612,7 @@ func (a *Actuator) releaseHost(ctx context.Context, host *bmh.BareMetalHost, mac
 	} else {
 		if host.Spec.ConsumerRef != nil &&
 			host.Spec.ConsumerRef.Kind == "Machine" &&
-			host.Spec.ConsumerRef.APIVersion == machine.APIVersion {
+			host.Spec.ConsumerRef.APIVersion == machinev1beta1.SchemeGroupVersion.String() {
 			// Host has been claimed by another Machine; leave that one to
 			// remove the finalizer
 			return nil
