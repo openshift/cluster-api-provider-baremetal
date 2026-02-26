@@ -5,16 +5,14 @@ GOPATH=$(shell go env GOPATH)
 
 BIN_DIR := bin
 MOCKGEN := $(BIN_DIR)/mockgen
-SETUP_ENVTEST := $(BIN_DIR)/setup-envtest
-ENVTEST_K8S_VERSION := 1.29.x
-ENVTEST_OS := linux
-ARCH ?= amd64
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VERSION := 1.34.1
+
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 $(MOCKGEN): # Build mockgen
 	go build -tags=tools -o $(BIN_DIR)/mockgen github.com/golang/mock/mockgen
-
-$(SETUP_ENVTEST):
-	go build -tags=tools -o $(BIN_DIR)/setup-envtest sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 .PHONY: build
 build:
@@ -30,8 +28,8 @@ test: generate fmt vet unit
 unit: unit-test
 
 .PHONY: unit-test
-unit-test: $(SETUP_ENVTEST)
-	$(shell $(SETUP_ENVTEST) use -p env --os $(ENVTEST_OS) --arch $(ARCH) $(ENVTEST_K8S_VERSION)) && \
+unit-test:
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin --index https://raw.githubusercontent.com/openshift/api/master/envtest-releases.yaml)" \
 		go test ./pkg/... ./cmd/... -coverprofile cover.out
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
