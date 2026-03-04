@@ -1,3 +1,4 @@
+//go:build tools
 // +build tools
 
 // Official workaround to track tool dependencies with go modules:
@@ -12,4 +13,7 @@ import (
 
 	// Need the whole vendored repo for applying manifests
 	_ "github.com/openshift/machine-api-operator"
+
+	// Need this for unit tests job in CI
+	_ "sigs.k8s.io/controller-runtime/tools/setup-envtest"
 )
