@@ -26,7 +26,7 @@ if [ -n "$TRACE" ]; then
   set -x
 fi
 
-k8s_version=1.16.4
+k8s_version=1.28.0
 goarch=amd64
 goos="unknown"
 
@@ -92,12 +92,12 @@ function fetch_tools {
   fi
 
   header_text "fetching tools"
-  kb_tools_archive_name="kubebuilder-tools-$k8s_version-$goos-$goarch.tar.gz"
-  kb_tools_download_url="https://storage.googleapis.com/kubebuilder-tools/$kb_tools_archive_name"
+  kb_tools_archive_name="envtest-v$k8s_version-$goos-$goarch.tar.gz"
+  kb_tools_download_url="https://github.com/kubernetes-sigs/controller-tools/releases/download/envtest-v$k8s_version/$kb_tools_archive_name"
 
   kb_tools_archive_path="$tmp_root/$kb_tools_archive_name"
   if [ ! -f $kb_tools_archive_path ]; then
-    curl -fsL ${kb_tools_download_url} -o "$kb_tools_archive_path"
+    curl -fSL ${kb_tools_download_url} -o "$kb_tools_archive_path"
   fi
   tar -zvxf "$kb_tools_archive_path" -C "$tmp_root/"
 }
@@ -106,10 +106,10 @@ function setup_envs {
   header_text "setting up env vars"
 
   # Setup env vars
-  export PATH=/tmp/kubebuilder/bin:$PATH
-  export TEST_ASSET_KUBECTL=/tmp/kubebuilder/bin/kubectl
-  export TEST_ASSET_KUBE_APISERVER=/tmp/kubebuilder/bin/kube-apiserver
-  export TEST_ASSET_ETCD=/tmp/kubebuilder/bin/etcd
+  export PATH=/tmp/controller-tools/envtest:$PATH
+  export TEST_ASSET_KUBECTL=/tmp/controller-tools/envtest/kubectl
+  export TEST_ASSET_KUBE_APISERVER=/tmp/controller-tools/envtest/kube-apiserver
+  export TEST_ASSET_ETCD=/tmp/controller-tools/envtest/etcd
 
   # Ensure that some home var is set and that it's not the root
   export HOME=${HOME:=/tmp/kubebuilder-testing}
