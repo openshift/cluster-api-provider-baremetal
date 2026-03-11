@@ -17,9 +17,10 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	capierrors "sigs.k8s.io/cluster-api/errors"
 )
 
@@ -27,6 +28,22 @@ const (
 	// ClusterFinalizer allows Metal3ClusterReconciler to clean up resources associated with Metal3Cluster before
 	// removing it from the apiserver.
 	ClusterFinalizer = "metal3cluster.infrastructure.cluster.x-k8s.io"
+)
+
+// Metal3Cluster Conditions and Reasons.
+const (
+	Metal3ClusterReadyV1Beta2Condition     = clusterv1beta1.ReadyV1Beta2Condition
+	Metal3ClusterReadyV1Beta2Reason        = clusterv1beta1.ReadyV1Beta2Reason
+	Metal3ClusterNotReadyV1Beta2Reason     = clusterv1beta1.NotReadyV1Beta2Reason
+	Metal3ClusterReadyUnknownV1Beta2Reason = clusterv1beta1.ReadyUnknownV1Beta2Reason
+)
+
+const (
+	BaremetalInfrastructureReadyV1Beta2Condition = "BaremetalInfrastructureReady"
+	BaremetalInfrastructureReadyV1Beta2Reason    = clusterv1beta1.ReadyV1Beta2Reason
+	ControlPlaneEndpointFailedV1Beta2Reason      = "ControlPlaneEndpointFailed"
+	FailedToGetOwnerClusterReasonV1Beta2Reason   = "FailedToGetOwnerCluster"
+	Metal3ClusterDeletingV1Beta2Reason           = clusterv1beta1.DeletingReason
 )
 
 // Metal3ClusterSpec defines the desired state of Metal3Cluster.
@@ -37,9 +54,27 @@ type Metal3ClusterSpec struct {
 	// Determines if the cluster is not to be deployed with an external cloud provider.
 	// If set to true, CAPM3 will use node labels to set providerID on the kubernetes nodes.
 	// If set to false, providerID is set on nodes by other entities and CAPM3 uses the value of the providerID on the m3m resource.
+	// TODO: Remove this field in release 1.11. Ref: https://github.com/metal3-io/cluster-api-provider-metal3/issues/2255
+	//
+	// Deprecated: This field is deprecated, use cloudProviderEnabled instead
+	//
 	// +optional
-	NoCloudProvider bool `json:"noCloudProvider,omitempty"`
+	NoCloudProvider *bool `json:"noCloudProvider,omitempty"`
+	// Determines if the cluster is to be deployed with an external cloud provider.
+	// If set to false, CAPM3 will use node labels to set providerID on the kubernetes nodes.
+	// If set to true, providerID is set on nodes by other entities and CAPM3 uses the value of the providerID on the m3m resource.
+	// TODO: Change the default value to false in release 1.12. Ref: https://github.com/metal3-io/cluster-api-provider-metal3/issues/2255
+	// Default value is true, it is set in the webhook.
+	// +optional
+	CloudProviderEnabled *bool `json:"cloudProviderEnabled,omitempty"`
+
+	// FailureDomains specifies a list fo failure zones that can be used
+	// +optional
+	FailureDomains FailureDomains `json:"failureDomains,omitempty"`
 }
+
+// FailureDomains is a slice of FailureDomainSpecs.
+type FailureDomains clusterv1beta1.FailureDomains
 
 // IsValid returns an error if the object is not valid, otherwise nil. The
 // string representation of the error is suitable for human consumption.
@@ -50,11 +85,11 @@ func (s *Metal3ClusterSpec) IsValid() error {
 	}
 
 	if s.ControlPlaneEndpoint.Port == 0 {
-		missing = append(missing, "ControlPlaneEndpoint.Host")
+		missing = append(missing, "ControlPlaneEndpoint.Port")
 	}
 
 	if len(missing) > 0 {
-		return errors.Errorf("Missing fields from Spec: %v", missing)
+		return fmt.Errorf("missing fields from Spec: %v", missing)
 	}
 	return nil
 }
@@ -84,12 +119,30 @@ type Metal3ClusterStatus struct {
 	Ready bool `json:"ready"`
 	// Conditions defines current service state of the Metal3Cluster.
 	// +optional
-	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
+	Conditions clusterv1beta1.Conditions `json:"conditions,omitempty"`
+	// v1beta2 groups all the fields that will be added or modified in Metal3Cluster's status with the V1Beta2 version.
+	// +optional
+	V1Beta2 *Metal3ClusterV1Beta2Status `json:"v1beta2,omitempty"`
+	// FailureDomains specifies a list fo failure zones that can be used
+	// +optional
+	FailureDomains FailureDomains `json:"failureDomains,omitempty"`
+}
+
+// Metal3ClusterV1Beta2Status groups all the fields that will be added or modified in Metal3ClusterStatus with the V1Beta2 version.
+// See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.
+type Metal3ClusterV1Beta2Status struct {
+	// conditions represents the observations of a Metal3Cluster's current state.
+	// Known condition types are Ready, and Paused, BareMetalInfraStructureReady.
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=32
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:path=metal3clusters,scope=Namespaced,categories=cluster-api,shortName=m3c;m3cluster;m3clusters;metal3c;metal3cluster
-// +kubebuilder:storageversion
+// +kubebuilder:deprecatedversion
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Metal3Cluster"
@@ -120,13 +173,29 @@ type Metal3ClusterList struct {
 }
 
 // GetConditions returns the list of conditions for an Metal3Cluster API object.
-func (c *Metal3Cluster) GetConditions() clusterv1.Conditions {
+func (c *Metal3Cluster) GetConditions() clusterv1beta1.Conditions {
 	return c.Status.Conditions
 }
 
 // SetConditions will set the given conditions on an Metal3Cluster object.
-func (c *Metal3Cluster) SetConditions(conditions clusterv1.Conditions) {
+func (c *Metal3Cluster) SetConditions(conditions clusterv1beta1.Conditions) {
 	c.Status.Conditions = conditions
+}
+
+// GetV1Beta2Conditions returns the set of conditions for this object.
+func (c *Metal3Cluster) GetV1Beta2Conditions() []metav1.Condition {
+	if c.Status.V1Beta2 == nil {
+		return nil
+	}
+	return c.Status.V1Beta2.Conditions
+}
+
+// SetV1Beta2Conditions sets conditions for an API object.
+func (c *Metal3Cluster) SetV1Beta2Conditions(conditions []metav1.Condition) {
+	if c.Status.V1Beta2 == nil {
+		c.Status.V1Beta2 = &Metal3ClusterV1Beta2Status{}
+	}
+	c.Status.V1Beta2.Conditions = conditions
 }
 
 func init() {

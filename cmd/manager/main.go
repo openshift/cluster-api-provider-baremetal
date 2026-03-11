@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
@@ -25,6 +26,7 @@ import (
 
 	bmoapis "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	capm3apis "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
+	osconfigv1 "github.com/openshift/api/config/v1"
 	apifeatures "github.com/openshift/api/features"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/apis"
@@ -33,6 +35,8 @@ import (
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/controller/metal3remediation"
 	"github.com/openshift/cluster-api-provider-baremetal/pkg/manager/wrapper"
+	capbmwebhook "github.com/openshift/cluster-api-provider-baremetal/pkg/webhook"
+	utiltls "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/library-go/pkg/features"
 	maomachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -116,6 +120,12 @@ func main() {
 	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
 		"Webhook cert dir, only used when webhook-enabled is true.")
 
+	tlsCipherSuites := flag.String("tls-cipher-suites", "",
+		"Comma-separated list of TLS cipher suites.")
+
+	tlsMinVersion := flag.String("tls-min-version", "",
+		"Minimum TLS version supported.")
+
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
 	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration)
@@ -180,9 +190,19 @@ func main() {
 	}
 
 	if *webhookEnabled {
+		tlsProfile := osconfigv1.TLSProfileSpec{
+			MinTLSVersion: osconfigv1.TLSProtocolVersion(*tlsMinVersion),
+		}
+		if *tlsCipherSuites != "" {
+			tlsProfile.Ciphers = strings.Split(*tlsCipherSuites, ",")
+		}
+
+		tlsOpts, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
+
 		opts.WebhookServer = webhook.NewServer(webhook.Options{
 			Port:    *webhookPort,
 			CertDir: *webhookCertdir,
+			TLSOpts: []func(*tls.Config){tlsOpts},
 		})
 	}
 
@@ -236,12 +256,12 @@ func main() {
 	}
 
 	if *webhookEnabled {
-		if err := (&capm3apis.Metal3Remediation{}).SetupWebhookWithManager(mgr); err != nil {
+		if err := (&capbmwebhook.Metal3Remediation{}).SetupWebhookWithManager(mgr); err != nil {
 			log.Error(err, "unable to create webhook", "webhook", "Metal3Remediation")
 			os.Exit(1)
 		}
 
-		if err := (&capm3apis.Metal3RemediationTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+		if err := (&capbmwebhook.Metal3RemediationTemplate{}).SetupWebhookWithManager(mgr); err != nil {
 			log.Error(err, "unable to create webhook", "webhook", "Metal3RemediationTemplate")
 			os.Exit(1)
 		}
