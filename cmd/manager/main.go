@@ -214,6 +214,9 @@ func main() {
 
 	machineActuator, err := machine.NewActuator(machine.ActuatorParams{
 		Client: mgr.GetClient(),
+		// Used only after a Machine annotation Update conflict, to see the
+		// annotation already written by another reconcile.
+		APIReader: mgr.GetAPIReader(),
 	})
 	if err != nil {
 		panic(err)

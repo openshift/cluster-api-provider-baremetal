@@ -73,18 +73,23 @@ const (
 
 // Actuator is responsible for performing machine reconciliation
 type Actuator struct {
-	client client.Client
+	client    client.Client
+	apiReader client.Reader
 }
 
 // ActuatorParams holds parameter information for Actuator
 type ActuatorParams struct {
 	Client client.Client
+	// APIReader is used only to re-read a Machine after an annotation Update
+	// conflict. Host lookups always use Client (the informer cache).
+	APIReader client.Reader
 }
 
 // NewActuator creates a new Actuator
 func NewActuator(params ActuatorParams) (*Actuator, error) {
 	return &Actuator{
-		client: params.Client,
+		client:    params.Client,
+		apiReader: params.APIReader,
 	}, nil
 }
 
@@ -390,31 +395,66 @@ func getHostKey(ctx context.Context, machine *machinev1beta1.Machine) (provider 
 	return
 }
 
-// getHost gets the associated host by looking for an annotation on the machine
-// that contains a reference to the host. Returns nil if not found. Assumes the
-// host is in the same namespace as the machine.
+// getHost gets the associated host by looking for an annotation or ProviderID
+// on the machine that contains a reference to the host. If that lookup fails,
+// it falls back to a BareMetalHost whose ConsumerRef matches this Machine.
+// Returns nil if not found.
 func (a *Actuator) getHost(ctx context.Context, machine *machinev1beta1.Machine) (*bmh.BareMetalHost, error) {
 	provider, key, uid, err := getHostKey(ctx, machine)
 	if err != nil {
 		log.Printf("Failed to get Host key: %v", err)
 		return nil, err
 	}
-	if key == nil {
+	if key != nil {
+		host := bmh.BareMetalHost{}
+		err = a.client.Get(ctx, *key, &host)
+		if err == nil && (uid == nil || host.UID == *uid) {
+			return &host, nil
+		}
+		if err != nil && !errors.IsNotFound(err) {
+			return nil, err
+		}
+		if errors.IsNotFound(err) {
+			log.Printf("Linked host %s not found", provider)
+		}
+	}
+
+	return a.hostByConsumerRef(ctx, machine)
+}
+
+// hostByConsumerRef lists BareMetalHosts and returns one whose ConsumerRef
+// matches this Machine. This covers the window after provisionHost() writes
+// ConsumerRef but before ensureAnnotation() is observed on the Machine.
+func (a *Actuator) hostByConsumerRef(ctx context.Context, machine *machinev1beta1.Machine) (*bmh.BareMetalHost, error) {
+	if machine.Name == "" {
 		return nil, nil
 	}
 
-	host := bmh.BareMetalHost{}
-	err = a.client.Get(ctx, *key, &host)
-	if errors.IsNotFound(err) {
-		log.Printf("Linked host %s not found", provider)
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	} else if uid != nil && host.UID != *uid {
-		// Host object has been replaced by a new one
-		return nil, nil
+	hosts := bmh.BareMetalHostList{}
+	opts := &client.ListOptions{
+		Namespace: machine.Namespace,
 	}
-	return &host, nil
+	err := a.client.List(ctx, &hosts, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	var found *bmh.BareMetalHost
+	for i := range hosts.Items {
+		if !consumerRefMatches(hosts.Items[i].Spec.ConsumerRef, machine) {
+			continue
+		}
+		if found != nil {
+			log.Printf("Machine %s has ConsumerRef on multiple hosts (%s and %s); using %s",
+				machine.Name, found.Name, hosts.Items[i].Name, found.Name)
+			break
+		}
+		found = &hosts.Items[i]
+	}
+	if found != nil {
+		log.Printf("found host %s by ConsumerRef for machine %s", found.Name, machine.Name)
+	}
+	return found, nil
 }
 
 // SelectorFromProviderSpec returns a selector that can be used to determine if
@@ -596,6 +636,13 @@ func (a *Actuator) provisionHost(ctx context.Context, host *bmh.BareMetalHost,
 
 	log.Printf("updating host %v with deployment information", host.Name)
 	if err := a.client.Update(ctx, host); err != nil {
+		// Update enforces resourceVersion. A conflict means another writer
+		// changed this BareMetalHost (typically another Machine claiming it).
+		// Retry on the next reconcile instead of overwriting with Patch.
+		if errors.IsConflict(err) {
+			log.Printf("host %s was modified, requeuing", host.Name)
+			return &machineapierrors.RequeueAfterError{RequeueAfter: requeueAfter}
+		}
 		return gherrors.Wrap(err, "failed to provision host")
 	}
 	return nil
@@ -671,6 +718,9 @@ func (a *Actuator) ensureAnnotation(ctx context.Context, machine *machinev1beta1
 
 	machine.ObjectMeta.SetAnnotations(annotations)
 	if err := a.client.Update(ctx, machine); err != nil {
+		if errors.IsConflict(err) {
+			return a.handleAnnotationConflict(ctx, machine, host, hostKey)
+		}
 		return gherrors.Wrap(err, "failed to update machine annotation")
 	}
 
@@ -679,6 +729,42 @@ func (a *Actuator) ensureAnnotation(ctx context.Context, machine *machinev1beta1
 	// complete. Use a delay so that we don't requeue before the annotation change
 	// is observed.
 	return &machineapierrors.RequeueAfterError{RequeueAfter: requeueAfter}
+}
+
+// handleAnnotationConflict recovers from a Machine Update conflict. That is the
+// "object has been modified" signal Update gives when our resourceVersion is
+// stale. If the Machine is already bound to a different BareMetalHost, release
+// the host we just claimed so this Machine does not consume two hosts.
+func (a *Actuator) handleAnnotationConflict(ctx context.Context, machine *machinev1beta1.Machine, host *bmh.BareMetalHost, hostKey string) error {
+	latest := &machinev1beta1.Machine{}
+	key := client.ObjectKey{Namespace: machine.Namespace, Name: machine.Name}
+	if err := a.machineReader().Get(ctx, key, latest); err != nil {
+		return gherrors.Wrap(err, "failed to re-read machine after annotation conflict")
+	}
+
+	current := ""
+	if latest.Annotations != nil {
+		current = latest.Annotations[HostAnnotation]
+	}
+	if current != "" && current != hostKey {
+		log.Printf("machine %s is already annotated to %s, releasing host %s",
+			machine.Name, current, host.Name)
+		if err := a.releaseHost(ctx, host, machine); err != nil {
+			return err
+		}
+	}
+
+	return &machineapierrors.RequeueAfterError{RequeueAfter: requeueAfter}
+}
+
+// machineReader returns a reader for the Machine after an Update conflict.
+// APIReader is used when set so we see the annotation another reconcile already
+// wrote, rather than a stale informer copy of the same Machine.
+func (a *Actuator) machineReader() client.Reader {
+	if a.apiReader != nil {
+		return a.apiReader
+	}
+	return a.client
 }
 
 // providerIDForHost returns a provider ID representing a given BareMetalHost

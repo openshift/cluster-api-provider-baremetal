@@ -694,8 +694,19 @@ func TestExists(t *testing.T) {
 					},
 				},
 			},
-			Expected:    false,
-			FailMessage: "found host even though annotation value incorrect",
+			Expected:    true,
+			FailMessage: "failed to find host by ConsumerRef after stale annotation",
+		},
+		{
+			Client: c,
+			Machine: machinev1beta1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      machineName,
+					Namespace: "myns",
+				},
+			},
+			Expected:    true,
+			FailMessage: "failed to find host by ConsumerRef when annotation is missing",
 		},
 		{
 			Client:      c,
@@ -734,6 +745,22 @@ func TestGetHost(t *testing.T) {
 	}
 	c := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&host).Build()
 
+	hostWithConsumer := bmh.BareMetalHost{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "consumedhost",
+			Namespace: "myns",
+		},
+		Spec: bmh.BareMetalHostSpec{
+			ConsumerRef: &corev1.ObjectReference{
+				Name:       "machine1",
+				Namespace:  "myns",
+				Kind:       "Machine",
+				APIVersion: machinev1beta1.SchemeGroupVersion.String(),
+			},
+		},
+	}
+	cConsumed := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&hostWithConsumer).Build()
+
 	testCases := []struct {
 		Client        client.Client
 		Machine       machinev1beta1.Machine
@@ -770,6 +797,42 @@ func TestGetHost(t *testing.T) {
 			ExpectPresent: false,
 			FailMessage:   "found host even though annotation not present",
 		},
+		{
+			Client: cConsumed,
+			Machine: machinev1beta1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "machine1",
+					Namespace: "myns",
+				},
+			},
+			ExpectPresent: true,
+			FailMessage:   "did not find host by ConsumerRef when annotation is missing",
+		},
+		{
+			Client: cConsumed,
+			Machine: machinev1beta1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "machine1",
+					Namespace: "myns",
+					Annotations: map[string]string{
+						HostAnnotation: "myns/wrong",
+					},
+				},
+			},
+			ExpectPresent: true,
+			FailMessage:   "did not find host by ConsumerRef after stale annotation",
+		},
+		{
+			Client: cConsumed,
+			Machine: machinev1beta1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "othermachine",
+					Namespace: "myns",
+				},
+			},
+			ExpectPresent: false,
+			FailMessage:   "found host whose ConsumerRef belongs to a different machine",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -787,6 +850,204 @@ func TestGetHost(t *testing.T) {
 		if (result != nil) != tc.ExpectPresent {
 			t.Error(tc.FailMessage)
 		}
+	}
+}
+
+func TestCreateReusesHostClaimedByConsumerRef(t *testing.T) {
+	scheme := runtime.NewScheme()
+	bmoapis.AddToScheme(scheme)
+	machinev1beta1.AddToScheme(scheme)
+
+	config, _ := newConfig(t, "", map[string]string{}, []bmv1alpha1.HostSelectorRequirement{})
+	raw, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	machine := machinev1beta1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine1",
+			Namespace: "myns",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Machine",
+			APIVersion: machinev1beta1.SchemeGroupVersion.String(),
+		},
+		Spec: machinev1beta1.MachineSpec{
+			ProviderSpec: machinev1beta1.ProviderSpec{
+				Value: &runtime.RawExtension{Raw: raw},
+			},
+		},
+	}
+	consumed := bmh.BareMetalHost{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "host3",
+			Namespace: "myns",
+		},
+		Spec: bmh.BareMetalHostSpec{
+			ConsumerRef: &corev1.ObjectReference{
+				Name:       "machine1",
+				Namespace:  "myns",
+				Kind:       "Machine",
+				APIVersion: machinev1beta1.SchemeGroupVersion.String(),
+			},
+		},
+		Status: bmh.BareMetalHostStatus{
+			Provisioning: bmh.ProvisionStatus{
+				State: bmh.StateReady,
+			},
+		},
+	}
+	available := bmh.BareMetalHost{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "host2",
+			Namespace: "myns",
+		},
+		Status: bmh.BareMetalHostStatus{
+			Provisioning: bmh.ProvisionStatus{
+				State: bmh.StateReady,
+			},
+		},
+	}
+
+	c := fakeclient.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(machine.DeepCopy(), consumed.DeepCopy(), available.DeepCopy()).
+		Build()
+
+	actuator, err := NewActuator(ActuatorParams{
+		Client: c,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created := &machinev1beta1.Machine{}
+	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: "myns", Name: "machine1"}, created); err != nil {
+		t.Fatal(err)
+	}
+
+	err = actuator.Create(context.TODO(), created)
+	expectRequeueAfterError(err, t)
+
+	gotConsumed := bmh.BareMetalHost{}
+	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: "myns", Name: "host3"}, &gotConsumed); err != nil {
+		t.Fatal(err)
+	}
+	if !consumerRefMatches(gotConsumed.Spec.ConsumerRef, &machine) {
+		t.Error("expected host3 to remain consumed by machine1")
+	}
+
+	gotAvailable := bmh.BareMetalHost{}
+	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: "myns", Name: "host2"}, &gotAvailable); err != nil {
+		t.Fatal(err)
+	}
+	if gotAvailable.Spec.ConsumerRef != nil {
+		t.Errorf("available host was claimed as %v; expected it to stay free", gotAvailable.Spec.ConsumerRef)
+	}
+
+	gotMachine := machinev1beta1.Machine{}
+	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: "myns", Name: "machine1"}, &gotMachine); err != nil {
+		t.Fatal(err)
+	}
+	if gotMachine.Annotations[HostAnnotation] != "myns/host3" {
+		t.Errorf("expected annotation myns/host3, got %q", gotMachine.Annotations[HostAnnotation])
+	}
+}
+
+func TestCreateAnnotationConflictReleasesExtraHost(t *testing.T) {
+	scheme := runtime.NewScheme()
+	bmoapis.AddToScheme(scheme)
+	machinev1beta1.AddToScheme(scheme)
+
+	config, _ := newConfig(t, "", map[string]string{}, []bmv1alpha1.HostSelectorRequirement{})
+	raw, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	machine := machinev1beta1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine1",
+			Namespace: "myns",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Machine",
+			APIVersion: machinev1beta1.SchemeGroupVersion.String(),
+		},
+		Spec: machinev1beta1.MachineSpec{
+			ProviderSpec: machinev1beta1.ProviderSpec{
+				Value: &runtime.RawExtension{Raw: raw},
+			},
+		},
+	}
+	// host3 is already recorded on the Machine but is not selectable, so a
+	// stale Create() without the annotation will pick host2 instead.
+	host3 := bmh.BareMetalHost{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "host3",
+			Namespace: "myns",
+		},
+		Status: bmh.BareMetalHostStatus{
+			Provisioning: bmh.ProvisionStatus{
+				State: bmh.StateProvisioning,
+			},
+		},
+	}
+	host2 := bmh.BareMetalHost{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "host2",
+			Namespace: "myns",
+		},
+		Status: bmh.BareMetalHostStatus{
+			Provisioning: bmh.ProvisionStatus{
+				State: bmh.StateReady,
+			},
+		},
+	}
+
+	c := fakeclient.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(machine.DeepCopy(), host2.DeepCopy(), host3.DeepCopy()).
+		Build()
+
+	stale := &machinev1beta1.Machine{}
+	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: "myns", Name: "machine1"}, stale); err != nil {
+		t.Fatal(err)
+	}
+
+	current := stale.DeepCopy()
+	current.Annotations = map[string]string{
+		HostAnnotation: "myns/host3",
+	}
+	if err := c.Update(context.TODO(), current); err != nil {
+		t.Fatal(err)
+	}
+
+	actuator, err := NewActuator(ActuatorParams{
+		Client: c,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = actuator.Create(context.TODO(), stale)
+	expectRequeueAfterError(err, t)
+
+	gotHost2 := bmh.BareMetalHost{}
+	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: "myns", Name: "host2"}, &gotHost2); err != nil {
+		t.Fatal(err)
+	}
+	if gotHost2.Spec.ConsumerRef != nil {
+		t.Errorf("stale Create claimed host2 as %v; expected it to be released", gotHost2.Spec.ConsumerRef)
+	}
+
+	gotMachine := machinev1beta1.Machine{}
+	if err := c.Get(context.TODO(), client.ObjectKey{Namespace: "myns", Name: "machine1"}, &gotMachine); err != nil {
+		t.Fatal(err)
+	}
+	if gotMachine.Annotations[HostAnnotation] != "myns/host3" {
+		t.Errorf("expected annotation myns/host3, got %q", gotMachine.Annotations[HostAnnotation])
 	}
 }
 
