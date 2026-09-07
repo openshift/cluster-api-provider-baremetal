@@ -17,15 +17,16 @@ limitations under the License.
 package machine
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/adler32"
 	"log"
 	"math/rand"
+	"slices"
 	"strings"
 	"time"
-
-	"slices"
 
 	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
@@ -521,8 +522,11 @@ func (a *Actuator) chooseHost(ctx context.Context, machine *machinev1beta1.Machi
 	}
 
 	// choose a host at random from available hosts
-	rand.Seed(time.Now().Unix())
-	chosenHost := availableHosts[rand.Intn(len(availableHosts))]
+	random := rand.New(rand.NewSource(int64(adler32.Checksum([]byte(machine.UID)))))
+	slices.SortFunc(availableHosts, func(a, b *bmh.BareMetalHost) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	chosenHost := availableHosts[random.Intn(len(availableHosts))]
 
 	return chosenHost, nil
 }
