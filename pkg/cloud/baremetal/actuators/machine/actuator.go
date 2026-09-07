@@ -139,11 +139,11 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1beta1.Machine) 
 		log.Printf("Machine %s already associated with host %s", machine.Name, host.Name)
 	}
 
-	if err := a.provisionHost(ctx, host, machine, config); err != nil {
+	if err := a.ensureAnnotation(ctx, machine, host); err != nil {
 		return err
 	}
 
-	if err := a.ensureAnnotation(ctx, machine, host); err != nil {
+	if err := a.provisionHost(ctx, host, machine, config); err != nil {
 		return err
 	}
 
@@ -413,6 +413,11 @@ func (a *Actuator) getHost(ctx context.Context, machine *machinev1beta1.Machine)
 		return nil, err
 	} else if uid != nil && host.UID != *uid {
 		// Host object has been replaced by a new one
+		return nil, nil
+	} else if (machine.Spec.ProviderID == nil || *machine.Spec.ProviderID == "") &&
+		host.Spec.ConsumerRef != nil &&
+		!consumerRefMatches(host.Spec.ConsumerRef, machine) {
+		log.Printf("selected host %s already allocated to %v", host.Name, host.Spec.ConsumerRef)
 		return nil, nil
 	}
 	return &host, nil
