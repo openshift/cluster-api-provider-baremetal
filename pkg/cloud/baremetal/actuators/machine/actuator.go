@@ -646,22 +646,35 @@ func (a *Actuator) ensureAnnotation(ctx context.Context, machine *machinev1beta1
 		annotations = make(map[string]string)
 	}
 
-	hostKey, err := cache.MetaNamespaceKeyFunc(host)
-	if err != nil {
-		log.Printf("Error parsing annotation value \"%s\": %v", hostKey, err)
-		return err
+	var hostKey, hostState string
+	if host != nil {
+		var err error
+		hostKey, err = cache.MetaNamespaceKeyFunc(host)
+		if err != nil {
+			log.Printf("Error constructing annotation value: %v", err)
+			return err
+		}
+		hostState = string(host.Status.Provisioning.State)
 	}
 	newValues := map[string]string{
 		HostAnnotation: hostKey,
-		machineapierrors.MachineInstanceStateAnnotationName: string(host.Status.Provisioning.State),
+		machineapierrors.MachineInstanceStateAnnotationName: hostState,
 	}
 	needsChanging := false
 	for newKey, newValue := range newValues {
 		existing, ok := annotations[newKey]
-		if !ok || existing != newValue {
-			log.Printf("setting annotation for %v to %v=%q", machine.Name, newKey, newValue)
-			annotations[newKey] = newValue
-			needsChanging = true
+		if host != nil {
+			if !ok || existing != newValue {
+				log.Printf("setting annotation for %v to %v=%q", machine.Name, newKey, newValue)
+				annotations[newKey] = newValue
+				needsChanging = true
+			}
+		} else {
+			if ok {
+				log.Printf("clearing annotation for %v (%v)", machine.Name, newKey)
+				delete(annotations, newKey)
+				needsChanging = true
+			}
 		}
 	}
 	if !needsChanging {
