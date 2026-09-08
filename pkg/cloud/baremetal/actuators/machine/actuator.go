@@ -122,17 +122,7 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1beta1.Machine) 
 			return err
 		}
 		if host == nil {
-			errorReason := machinev1beta1.InsufficientResourcesMachineError
-			msg := "No available BareMetalHost found"
-			log.Printf("%s", msg)
-			if machine.Status.ErrorReason == nil || *machine.Status.ErrorReason != errorReason {
-				machine.Status.ErrorReason = &errorReason
-				machine.Status.ErrorMessage = &msg
-				if err := a.client.Status().Update(ctx, machine); err != nil {
-					return gherrors.Wrap(err, "failed to set insufficient resources error")
-				}
-			}
-			return &machineapierrors.RequeueAfterError{RequeueAfter: requeueAfter}
+			return a.handleNoAvailableHosts(ctx, machine)
 		}
 		log.Printf("Associating machine %s with host %s", machine.Name, host.Name)
 	} else {
@@ -783,6 +773,20 @@ func (a *Actuator) setError(ctx context.Context, machine *machinev1beta1.Machine
 	machine.Status.ErrorReason = &reason
 	log.Printf("Machine %s: %s", machine.Name, message)
 	return a.client.Status().Update(ctx, machine)
+}
+
+func (a *Actuator) handleNoAvailableHosts(ctx context.Context, machine *machinev1beta1.Machine) error {
+	errorReason := machinev1beta1.InsufficientResourcesMachineError
+	msg := "No available BareMetalHost found"
+	log.Printf("%s", msg)
+	if machine.Status.ErrorReason == nil || *machine.Status.ErrorReason != errorReason {
+		machine.Status.ErrorReason = &errorReason
+		machine.Status.ErrorMessage = &msg
+		if err := a.client.Status().Update(ctx, machine); err != nil {
+			return gherrors.Wrap(err, "failed to set insufficient resources error")
+		}
+	}
+	return &machineapierrors.RequeueAfterError{RequeueAfter: requeueAfter}
 }
 
 // clearInsufficientResourcesError removes the ErrorMessage from the machine's
