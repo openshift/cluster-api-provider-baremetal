@@ -798,6 +798,8 @@ func (a *Actuator) handleNoAvailableHosts(ctx context.Context, machine *machinev
 		if err := a.client.Status().Update(ctx, machine); err != nil {
 			return gherrors.Wrap(err, "failed to set insufficient resources error")
 		}
+	} else if err := a.ensureAnnotation(ctx, machine, nil); err != nil {
+		return err
 	}
 	return &machineapierrors.RequeueAfterError{RequeueAfter: requeueAfter}
 }
