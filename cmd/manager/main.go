@@ -44,6 +44,7 @@ import (
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
@@ -297,29 +298,19 @@ func main() {
 }
 
 func parseTLSCurvePreferences(value string) ([]tls.CurveID, error) {
-	if value == "" {
-		return nil, nil
+	var curveIDs []int32
+	if value != "" {
+		values := strings.Split(value, ",")
+		curveIDs = make([]int32, 0, len(values))
+		for _, value := range values {
+			id, err := strconv.ParseUint(value, 10, 31)
+			if err != nil {
+				return nil, fmt.Errorf("curve ID %q must be a decimal integer: %w", value, err)
+			}
+			curveIDs = append(curveIDs, int32(id))
+		}
 	}
-
-	values := strings.Split(value, ",")
-	curves := make([]tls.CurveID, 0, len(values))
-	seen := make(map[tls.CurveID]bool, len(values))
-	for _, value := range values {
-		id, err := strconv.ParseUint(value, 10, 16)
-		if err != nil || id == 0 {
-			return nil, fmt.Errorf("curve ID %q must be a decimal integer between 1 and 65535", value)
-		}
-		curve := tls.CurveID(id)
-		if strings.HasPrefix(curve.String(), "CurveID(") {
-			return nil, fmt.Errorf("unsupported curve ID %q", value)
-		}
-		if seen[curve] {
-			return nil, fmt.Errorf("duplicate curve ID %q", value)
-		}
-		seen[curve] = true
-		curves = append(curves, curve)
-	}
-	return curves, nil
+	return cliflag.TLSCurvePreferences(curveIDs)
 }
 
 func waitForAPIs(cfg *rest.Config) error {
