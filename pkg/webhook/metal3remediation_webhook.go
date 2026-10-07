@@ -49,8 +49,7 @@ var _ crwebhook.CustomDefaulter = &Metal3Remediation{}
 var _ crwebhook.CustomValidator = &Metal3Remediation{}
 
 func (w *Metal3Remediation) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(&infrav1.Metal3Remediation{}).
+	return ctrl.NewWebhookManagedBy[runtime.Object](mgr, &infrav1.Metal3Remediation{}).
 		WithDefaulter(w, admission.DefaulterRemoveUnknownOrOmitableFields).
 		WithValidator(w).
 		Complete()
