@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +44,7 @@ import (
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
@@ -126,6 +128,9 @@ func main() {
 	tlsMinVersion := flag.String("tls-min-version", "",
 		"Minimum TLS version supported.")
 
+	tlsCurvePreferences := flag.String("tls-curve-preferences", "",
+		"Comma-separated list of TLS curve IDs in decimal form. If empty, Go defaults are used.")
+
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
 	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration)
@@ -137,6 +142,11 @@ func main() {
 	gateOpts.AddFlagsToGoFlagSet(nil)
 
 	flag.Parse()
+
+	curvePreferences, err := parseTLSCurvePreferences(*tlsCurvePreferences)
+	if err != nil {
+		klog.Fatalf("Invalid --tls-curve-preferences: %v", err)
+	}
 
 	log := logf.Log.WithName("baremetal-controller-manager")
 	logf.SetLogger(klogr.New())
@@ -198,11 +208,17 @@ func main() {
 		}
 
 		tlsOpts, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
+		tlsOptions := []func(*tls.Config){tlsOpts}
+		if len(curvePreferences) > 0 {
+			tlsOptions = append(tlsOptions, func(config *tls.Config) {
+				config.CurvePreferences = curvePreferences
+			})
+		}
 
 		opts.WebhookServer = webhook.NewServer(webhook.Options{
 			Port:    *webhookPort,
 			CertDir: *webhookCertdir,
-			TLSOpts: []func(*tls.Config){tlsOpts},
+			TLSOpts: tlsOptions,
 		})
 	}
 
@@ -279,6 +295,22 @@ func main() {
 		entryLog.Error(err, "unable to run manager")
 		os.Exit(1)
 	}
+}
+
+func parseTLSCurvePreferences(value string) ([]tls.CurveID, error) {
+	var curveIDs []int32
+	if value != "" {
+		values := strings.Split(value, ",")
+		curveIDs = make([]int32, 0, len(values))
+		for _, value := range values {
+			id, err := strconv.ParseUint(value, 10, 31)
+			if err != nil {
+				return nil, fmt.Errorf("curve ID %q must be a decimal integer: %w", value, err)
+			}
+			curveIDs = append(curveIDs, int32(id))
+		}
+	}
+	return cliflag.TLSCurvePreferences(curveIDs)
 }
 
 func waitForAPIs(cfg *rest.Config) error {
