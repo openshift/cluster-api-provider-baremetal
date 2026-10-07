@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,6 +127,9 @@ func main() {
 	tlsMinVersion := flag.String("tls-min-version", "",
 		"Minimum TLS version supported.")
 
+	tlsCurvePreferences := flag.String("tls-curve-preferences", "",
+		"Comma-separated list of TLS curve IDs in decimal form. If empty, Go defaults are used.")
+
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
 	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration)
@@ -137,6 +141,11 @@ func main() {
 	gateOpts.AddFlagsToGoFlagSet(nil)
 
 	flag.Parse()
+
+	curvePreferences, err := parseTLSCurvePreferences(*tlsCurvePreferences)
+	if err != nil {
+		klog.Fatalf("Invalid --tls-curve-preferences: %v", err)
+	}
 
 	log := logf.Log.WithName("baremetal-controller-manager")
 	logf.SetLogger(klogr.New())
@@ -198,11 +207,17 @@ func main() {
 		}
 
 		tlsOpts, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
+		tlsOptions := []func(*tls.Config){tlsOpts}
+		if len(curvePreferences) > 0 {
+			tlsOptions = append(tlsOptions, func(config *tls.Config) {
+				config.CurvePreferences = curvePreferences
+			})
+		}
 
 		opts.WebhookServer = webhook.NewServer(webhook.Options{
 			Port:    *webhookPort,
 			CertDir: *webhookCertdir,
-			TLSOpts: []func(*tls.Config){tlsOpts},
+			TLSOpts: tlsOptions,
 		})
 	}
 
@@ -279,6 +294,32 @@ func main() {
 		entryLog.Error(err, "unable to run manager")
 		os.Exit(1)
 	}
+}
+
+func parseTLSCurvePreferences(value string) ([]tls.CurveID, error) {
+	if value == "" {
+		return nil, nil
+	}
+
+	values := strings.Split(value, ",")
+	curves := make([]tls.CurveID, 0, len(values))
+	seen := make(map[tls.CurveID]bool, len(values))
+	for _, value := range values {
+		id, err := strconv.ParseUint(value, 10, 16)
+		if err != nil || id == 0 {
+			return nil, fmt.Errorf("curve ID %q must be a decimal integer between 1 and 65535", value)
+		}
+		curve := tls.CurveID(id)
+		if strings.HasPrefix(curve.String(), "CurveID(") {
+			return nil, fmt.Errorf("unsupported curve ID %q", value)
+		}
+		if seen[curve] {
+			return nil, fmt.Errorf("duplicate curve ID %q", value)
+		}
+		seen[curve] = true
+		curves = append(curves, curve)
+	}
+	return curves, nil
 }
 
 func waitForAPIs(cfg *rest.Config) error {
