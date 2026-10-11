@@ -17,15 +17,16 @@ limitations under the License.
 package machine
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/adler32"
 	"log"
 	"math/rand"
+	"slices"
 	"strings"
 	"time"
-
-	"slices"
 
 	bmh "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
@@ -121,28 +122,18 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1beta1.Machine) 
 			return err
 		}
 		if host == nil {
-			errorReason := machinev1beta1.InsufficientResourcesMachineError
-			msg := "No available BareMetalHost found"
-			log.Printf("%s", msg)
-			if machine.Status.ErrorReason == nil || *machine.Status.ErrorReason != errorReason {
-				machine.Status.ErrorReason = &errorReason
-				machine.Status.ErrorMessage = &msg
-				if err := a.client.Status().Update(ctx, machine); err != nil {
-					return gherrors.Wrap(err, "failed to set insufficient resources error")
-				}
-			}
-			return &machineapierrors.RequeueAfterError{RequeueAfter: requeueAfter}
+			return a.handleNoAvailableHosts(ctx, machine)
 		}
 		log.Printf("Associating machine %s with host %s", machine.Name, host.Name)
 	} else {
 		log.Printf("Machine %s already associated with host %s", machine.Name, host.Name)
 	}
 
-	if err := a.provisionHost(ctx, host, machine, config); err != nil {
+	if err := a.ensureAnnotation(ctx, machine, host); err != nil {
 		return err
 	}
 
-	if err := a.ensureAnnotation(ctx, machine, host); err != nil {
+	if err := a.provisionHost(ctx, host, machine, config); err != nil {
 		return err
 	}
 
@@ -413,6 +404,11 @@ func (a *Actuator) getHost(ctx context.Context, machine *machinev1beta1.Machine)
 	} else if uid != nil && host.UID != *uid {
 		// Host object has been replaced by a new one
 		return nil, nil
+	} else if (machine.Spec.ProviderID == nil || *machine.Spec.ProviderID == "") &&
+		host.Spec.ConsumerRef != nil &&
+		!consumerRefMatches(host.Spec.ConsumerRef, machine) {
+		log.Printf("selected host %s already allocated to %v", host.Name, host.Spec.ConsumerRef)
+		return nil, nil
 	}
 	return &host, nil
 }
@@ -521,8 +517,11 @@ func (a *Actuator) chooseHost(ctx context.Context, machine *machinev1beta1.Machi
 	}
 
 	// choose a host at random from available hosts
-	rand.Seed(time.Now().Unix())
-	chosenHost := availableHosts[rand.Intn(len(availableHosts))]
+	random := rand.New(rand.NewSource(int64(adler32.Checksum([]byte(machine.UID)))))
+	slices.SortFunc(availableHosts, func(a, b *bmh.BareMetalHost) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	chosenHost := availableHosts[random.Intn(len(availableHosts))]
 
 	return chosenHost, nil
 }
@@ -647,22 +646,35 @@ func (a *Actuator) ensureAnnotation(ctx context.Context, machine *machinev1beta1
 		annotations = make(map[string]string)
 	}
 
-	hostKey, err := cache.MetaNamespaceKeyFunc(host)
-	if err != nil {
-		log.Printf("Error parsing annotation value \"%s\": %v", hostKey, err)
-		return err
+	var hostKey, hostState string
+	if host != nil {
+		var err error
+		hostKey, err = cache.MetaNamespaceKeyFunc(host)
+		if err != nil {
+			log.Printf("Error constructing annotation value: %v", err)
+			return err
+		}
+		hostState = string(host.Status.Provisioning.State)
 	}
 	newValues := map[string]string{
 		HostAnnotation: hostKey,
-		machineapierrors.MachineInstanceStateAnnotationName: string(host.Status.Provisioning.State),
+		machineapierrors.MachineInstanceStateAnnotationName: hostState,
 	}
 	needsChanging := false
 	for newKey, newValue := range newValues {
 		existing, ok := annotations[newKey]
-		if !ok || existing != newValue {
-			log.Printf("setting annotation for %v to %v=%q", machine.Name, newKey, newValue)
-			annotations[newKey] = newValue
-			needsChanging = true
+		if host != nil {
+			if !ok || existing != newValue {
+				log.Printf("setting annotation for %v to %v=%q", machine.Name, newKey, newValue)
+				annotations[newKey] = newValue
+				needsChanging = true
+			}
+		} else {
+			if ok {
+				log.Printf("clearing annotation for %v (%v)", machine.Name, newKey)
+				delete(annotations, newKey)
+				needsChanging = true
+			}
 		}
 	}
 	if !needsChanging {
@@ -774,6 +786,22 @@ func (a *Actuator) setError(ctx context.Context, machine *machinev1beta1.Machine
 	machine.Status.ErrorReason = &reason
 	log.Printf("Machine %s: %s", machine.Name, message)
 	return a.client.Status().Update(ctx, machine)
+}
+
+func (a *Actuator) handleNoAvailableHosts(ctx context.Context, machine *machinev1beta1.Machine) error {
+	errorReason := machinev1beta1.InsufficientResourcesMachineError
+	msg := "No available BareMetalHost found"
+	log.Printf("%s", msg)
+	if machine.Status.ErrorReason == nil || *machine.Status.ErrorReason != errorReason {
+		machine.Status.ErrorReason = &errorReason
+		machine.Status.ErrorMessage = &msg
+		if err := a.client.Status().Update(ctx, machine); err != nil {
+			return gherrors.Wrap(err, "failed to set insufficient resources error")
+		}
+	} else if err := a.ensureAnnotation(ctx, machine, nil); err != nil {
+		return err
+	}
+	return &machineapierrors.RequeueAfterError{RequeueAfter: requeueAfter}
 }
 
 // clearInsufficientResourcesError removes the ErrorMessage from the machine's
