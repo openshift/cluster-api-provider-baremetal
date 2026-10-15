@@ -28,38 +28,39 @@ func TestParseTLSCurvePreferences(t *testing.T) {
 		name    string
 		input   string
 		want    []tls.CurveID
-		wantErr bool
+		wantErr string
 	}{
 		{name: "empty uses Go defaults"},
 		{name: "single curve", input: "29", want: []tls.CurveID{tls.X25519}},
 		{name: "MAO defaults preserve order", input: "4588,29,23,24", want: []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256, tls.CurveP384}},
 		{name: "P521", input: "25", want: []tls.CurveID{tls.CurveP521}},
 		{name: "leading zeros are decimal", input: "00029", want: []tls.CurveID{tls.X25519}},
-		{name: "duplicate", input: "29,23,29", wantErr: true},
-		{name: "duplicate with leading zeros", input: "29,00029", wantErr: true},
-		{name: "zero", input: "0", wantErr: true},
-		{name: "unsupported", input: "1", wantErr: true},
-		{name: "maximum uint16 unsupported", input: "65535", wantErr: true},
-		{name: "exceeds uint16", input: "65536", wantErr: true},
-		{name: "exceeds int32", input: "2147483648", wantErr: true},
-		{name: "exceeds uint64", input: "18446744073709551616", wantErr: true},
-		{name: "negative", input: "-29", wantErr: true},
-		{name: "explicit plus", input: "+29", wantErr: true},
-		{name: "hexadecimal", input: "0x1d", wantErr: true},
-		{name: "text", input: "secret-api-token", wantErr: true},
-		{name: "leading whitespace", input: " 29", wantErr: true},
-		{name: "trailing whitespace", input: "29 ", wantErr: true},
-		{name: "whitespace after comma", input: "29, 23", wantErr: true},
-		{name: "empty element", input: "29,,23", wantErr: true},
-		{name: "leading comma", input: ",29", wantErr: true},
-		{name: "trailing comma", input: "29,", wantErr: true},
+		{name: "duplicate", input: "29,23,29", wantErr: "duplicate curve preference 29"},
+		{name: "duplicate with leading zeros", input: "29,00029", wantErr: "duplicate curve preference 29"},
+		{name: "zero", input: "0", wantErr: "curve preference 0 is out of range (must be 1-65535)"},
+		{name: "unsupported", input: "1", wantErr: "curve preference 1 is not supported by the current Go version"},
+		{name: "maximum uint16 unsupported", input: "65535", wantErr: "curve preference 65535 is not supported by the current Go version"},
+		{name: "exceeds uint16", input: "65536", wantErr: "curve preference 65536 is out of range (must be 1-65535)"},
+		{name: "exceeds int32", input: "2147483648", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "exceeds uint64", input: "18446744073709551616", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "negative", input: "-29", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "explicit plus", input: "+29", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "hexadecimal", input: "0x1d", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "text", input: "secret-api-token", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "malformed value is not exposed", input: "29,secret-api-token", wantErr: "curve ID at position 2 must be a decimal integer"},
+		{name: "leading whitespace", input: " 29", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "trailing whitespace", input: "29 ", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "whitespace after comma", input: "29, 23", wantErr: "curve ID at position 2 must be a decimal integer"},
+		{name: "empty element", input: "29,,23", wantErr: "curve ID at position 2 must be a decimal integer"},
+		{name: "leading comma", input: ",29", wantErr: "curve ID at position 1 must be a decimal integer"},
+		{name: "trailing comma", input: "29,", wantErr: "curve ID at position 2 must be a decimal integer"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			got, err := parseTLSCurvePreferences(tt.input)
-			if tt.wantErr {
-				g.Expect(err).To(HaveOccurred())
+			if tt.wantErr != "" {
+				g.Expect(err).To(MatchError(tt.wantErr))
 				g.Expect(got).To(BeNil())
 				return
 			}
@@ -67,10 +68,4 @@ func TestParseTLSCurvePreferences(t *testing.T) {
 			g.Expect(got).To(Equal(tt.want))
 		})
 	}
-}
-
-func TestParseTLSCurvePreferencesDoesNotExposeMalformedValue(t *testing.T) {
-	g := NewWithT(t)
-	_, err := parseTLSCurvePreferences("29,secret-api-token")
-	g.Expect(err).To(MatchError("curve ID at position 2 must be a decimal integer"))
 }
