@@ -22,32 +22,25 @@ import (
 
 	infrav1 "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
-	crwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // Metal3RemediationTemplate implements validation and defaulting webhooks for Metal3RemediationTemplate.
 type Metal3RemediationTemplate struct{}
 
-var _ crwebhook.CustomDefaulter = &Metal3RemediationTemplate{}
-var _ crwebhook.CustomValidator = &Metal3RemediationTemplate{}
+var _ admission.Defaulter[*infrav1.Metal3RemediationTemplate] = &Metal3RemediationTemplate{}
+var _ admission.Validator[*infrav1.Metal3RemediationTemplate] = &Metal3RemediationTemplate{}
 
 func (w *Metal3RemediationTemplate) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy[runtime.Object](mgr, &infrav1.Metal3RemediationTemplate{}).
+	return ctrl.NewWebhookManagedBy(mgr, &infrav1.Metal3RemediationTemplate{}).
 		WithDefaulter(w, admission.DefaulterRemoveUnknownOrOmitableFields).
 		WithValidator(w).
 		Complete()
 }
 
-func (w *Metal3RemediationTemplate) Default(_ context.Context, obj runtime.Object) error {
-	m3rt, ok := obj.(*infrav1.Metal3RemediationTemplate)
-	if !ok {
-		return apierrors.NewBadRequest(fmt.Sprintf("expected a Metal3RemediationTemplate but got a %T", obj))
-	}
-
+func (w *Metal3RemediationTemplate) Default(_ context.Context, m3rt *infrav1.Metal3RemediationTemplate) error {
 	if m3rt.Spec.Template.Spec.Strategy.Type == "" {
 		m3rt.Spec.Template.Spec.Strategy.Type = infrav1.RebootRemediationStrategy
 	}
@@ -63,23 +56,15 @@ func (w *Metal3RemediationTemplate) Default(_ context.Context, obj runtime.Objec
 	return nil
 }
 
-func (w *Metal3RemediationTemplate) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	m3rt, ok := obj.(*infrav1.Metal3RemediationTemplate)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Metal3RemediationTemplate but got a %T", obj))
-	}
-	return nil, validateRemediationTemplate(m3rt)
+func (w *Metal3RemediationTemplate) ValidateCreate(_ context.Context, obj *infrav1.Metal3RemediationTemplate) (admission.Warnings, error) {
+	return nil, validateRemediationTemplate(obj)
 }
 
-func (w *Metal3RemediationTemplate) ValidateUpdate(_ context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
-	m3rt, ok := newObj.(*infrav1.Metal3RemediationTemplate)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Metal3RemediationTemplate but got a %T", newObj))
-	}
-	return nil, validateRemediationTemplate(m3rt)
+func (w *Metal3RemediationTemplate) ValidateUpdate(_ context.Context, _, newObj *infrav1.Metal3RemediationTemplate) (admission.Warnings, error) {
+	return nil, validateRemediationTemplate(newObj)
 }
 
-func (w *Metal3RemediationTemplate) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (w *Metal3RemediationTemplate) ValidateDelete(_ context.Context, _ *infrav1.Metal3RemediationTemplate) (admission.Warnings, error) {
 	return nil, nil
 }
 

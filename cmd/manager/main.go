@@ -297,15 +297,17 @@ func main() {
 	}
 }
 
+// parseTLSCurvePreferences parses decimal curve IDs for Kubernetes TLS validation.
+// The standard flag package has no integer-slice flag, so the list is parsed here.
 func parseTLSCurvePreferences(value string) ([]tls.CurveID, error) {
 	var curveIDs []int32
 	if value != "" {
 		values := strings.Split(value, ",")
 		curveIDs = make([]int32, 0, len(values))
-		for _, value := range values {
+		for i, value := range values {
 			id, err := strconv.ParseUint(value, 10, 31)
 			if err != nil {
-				return nil, fmt.Errorf("curve ID %q must be a decimal integer: %w", value, err)
+				return nil, fmt.Errorf("curve ID at position %d must be a decimal integer", i+1)
 			}
 			curveIDs = append(curveIDs, int32(id))
 		}
