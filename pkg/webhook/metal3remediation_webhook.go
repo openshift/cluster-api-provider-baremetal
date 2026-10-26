@@ -24,10 +24,8 @@ import (
 	infrav1 "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
-	crwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -45,38 +43,29 @@ var (
 // Metal3Remediation implements validation and defaulting webhooks for Metal3Remediation.
 type Metal3Remediation struct{}
 
-var _ crwebhook.CustomDefaulter = &Metal3Remediation{}
-var _ crwebhook.CustomValidator = &Metal3Remediation{}
+var _ admission.Defaulter[*infrav1.Metal3Remediation] = &Metal3Remediation{}
+var _ admission.Validator[*infrav1.Metal3Remediation] = &Metal3Remediation{}
 
 func (w *Metal3Remediation) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(&infrav1.Metal3Remediation{}).
+	return ctrl.NewWebhookManagedBy(mgr, &infrav1.Metal3Remediation{}).
 		WithDefaulter(w, admission.DefaulterRemoveUnknownOrOmitableFields).
 		WithValidator(w).
 		Complete()
 }
 
-func (w *Metal3Remediation) Default(_ context.Context, _ runtime.Object) error {
+func (w *Metal3Remediation) Default(_ context.Context, _ *infrav1.Metal3Remediation) error {
 	return nil
 }
 
-func (w *Metal3Remediation) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	c, ok := obj.(*infrav1.Metal3Remediation)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Metal3Remediation but got a %T", obj))
-	}
-	return nil, validateRemediation(c)
+func (w *Metal3Remediation) ValidateCreate(_ context.Context, obj *infrav1.Metal3Remediation) (admission.Warnings, error) {
+	return nil, validateRemediation(obj)
 }
 
-func (w *Metal3Remediation) ValidateUpdate(_ context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
-	c, ok := newObj.(*infrav1.Metal3Remediation)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Metal3Remediation but got a %T", newObj))
-	}
-	return nil, validateRemediation(c)
+func (w *Metal3Remediation) ValidateUpdate(_ context.Context, _, newObj *infrav1.Metal3Remediation) (admission.Warnings, error) {
+	return nil, validateRemediation(newObj)
 }
 
-func (w *Metal3Remediation) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (w *Metal3Remediation) ValidateDelete(_ context.Context, _ *infrav1.Metal3Remediation) (admission.Warnings, error) {
 	return nil, nil
 }
 
