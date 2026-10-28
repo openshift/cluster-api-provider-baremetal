@@ -125,4 +125,4 @@ replace (
 	google.golang.org/protobuf => google.golang.org/protobuf v1.33.0
 )
 
-replace golang.org/x/net => github.com/openshift-sustaining/net v0.35.0-sec.3
+replace golang.org/x/net => github.com/openshift-sustaining/net v0.35.0-sec.4
