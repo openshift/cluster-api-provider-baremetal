@@ -21,7 +21,4 @@ set -o pipefail
 REPO_ROOT=$(dirname "${BASH_SOURCE}")/..
 
 cd $REPO_ROOT && \
-	source ./hack/fetch_ext_bins.sh && \
-	fetch_tools && \
-	setup_envs && \
 	make unit-test
