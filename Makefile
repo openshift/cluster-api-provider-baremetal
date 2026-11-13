@@ -9,6 +9,7 @@ SETUP_ENVTEST := $(BIN_DIR)/setup-envtest
 ENVTEST_K8S_VERSION := 1.29.x
 ENVTEST_OS := linux
 ARCH ?= amd64
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 $(MOCKGEN): # Build mockgen
 	go build -tags=tools -o $(BIN_DIR)/mockgen github.com/golang/mock/mockgen
@@ -31,7 +32,7 @@ unit: unit-test
 
 .PHONY: unit-test
 unit-test: $(SETUP_ENVTEST)
-	$(shell $(SETUP_ENVTEST) use -p env --os $(ENVTEST_OS) --arch $(ARCH) $(ENVTEST_K8S_VERSION)) && \
+	$(shell $(SETUP_ENVTEST) use -p env --os $(ENVTEST_OS) --arch $(ARCH) --bin-dir $(PROJECT_DIR)/bin $(ENVTEST_K8S_VERSION)) && \
 		go test ./pkg/... ./cmd/... -coverprofile cover.out
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
